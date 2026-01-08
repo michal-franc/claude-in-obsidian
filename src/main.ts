@@ -11,9 +11,9 @@ import { CommandInputModal } from './command-input-modal';
 import { ResponseModal } from './response-modal';
 
 export default class ClaudeFromObsidianPlugin extends Plugin {
-	settings: ClaudeFromObsidianSettings;
-	processManager: ClaudeProcessManager;
-	sessionManager: SessionManager;
+	settings!: ClaudeFromObsidianSettings;
+	processManager!: ClaudeProcessManager;
+	sessionManager!: SessionManager;
 
 	async onload() {
 		console.log('Loading Claude from Obsidian plugin');
@@ -56,8 +56,8 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		this.addCommand({
 			id: 'ask-claude',
 			name: 'Ask Claude with selected text',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				this.handleAskClaude(editor, view);
+			editorCallback: (editor: Editor) => {
+				this.handleAskClaude(editor);
 			},
 			hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'c' }],
 		});
@@ -75,7 +75,7 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 	/**
 	 * Handle "Ask Claude" command
 	 */
-	private async handleAskClaude(editor: Editor, view: MarkdownView): Promise<void> {
+	private async handleAskClaude(editor: Editor): Promise<void> {
 		const selectedText = editor.getSelection();
 
 		try {
