@@ -1,0 +1,151 @@
+/* Claude from Obsidian Plugin Styles */
+
+/* Session Selector Modal */
+.claude-session-item {
+	padding: 12px;
+	margin: 8px 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.claude-session-item.clickable:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.claude-session-info {
+	margin-left: 24px;
+}
+
+.claude-session-name {
+	font-weight: 600;
+	font-size: 1.1em;
+	margin-bottom: 4px;
+}
+
+.claude-session-dir {
+	color: var(--text-muted);
+	font-size: 0.9em;
+	margin-bottom: 4px;
+}
+
+.claude-session-time {
+	color: var(--text-faint);
+	font-size: 0.85em;
+}
+
+.claude-status-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 4px;
+	font-size: 0.85em;
+	font-weight: 500;
+}
+
+.claude-status-active {
+	color: var(--text-success);
+}
+
+.claude-status-stopped {
+	color: var(--text-muted);
+}
+
+.claude-status-crashed {
+	color: var(--text-error);
+}
+
+.claude-no-sessions {
+	color: var(--text-muted);
+	font-style: italic;
+	text-align: center;
+	padding: 20px;
+}
+
+/* Command Input Modal */
+.claude-command-section {
+	margin: 16px 0;
+}
+
+.claude-command-section h3 {
+	margin-bottom: 8px;
+}
+
+.claude-context-display {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 12px;
+	max-height: 200px;
+	overflow-y: auto;
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	white-space: pre-wrap;
+	margin-bottom: 12px;
+}
+
+.claude-command-input {
+	width: 100%;
+	min-height: 100px;
+	font-family: var(--font-text);
+	resize: vertical;
+}
+
+/* Response Modal */
+.claude-response-loading {
+	text-align: center;
+	padding: 40px;
+}
+
+.claude-response-spinner {
+	display: inline-block;
+	width: 40px;
+	height: 40px;
+	border: 4px solid var(--background-modifier-border);
+	border-top-color: var(--interactive-accent);
+	border-radius: 50%;
+	animation: claude-spin 1s linear infinite;
+}
+
+@keyframes claude-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.claude-response-content {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 16px;
+	max-height: 400px;
+	overflow-y: auto;
+	margin: 16px 0;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+.claude-response-error {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--text-error);
+	border-radius: 4px;
+	padding: 16px;
+	margin: 16px 0;
+	color: var(--text-error);
+}
+
+.claude-response-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 16px;
+}
+
+/* Session header */
+.claude-session-header {
+	background-color: var(--background-secondary);
+	padding: 8px 12px;
+	border-radius: 4px;
+	margin-bottom: 16px;
+	font-weight: 500;
+}
