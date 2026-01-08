@@ -1,0 +1,33 @@
+# dependencies
+node_modules
+
+# build output
+main.js
+*.js.map
+dist/
+
+# npm
+package-lock.json
+yarn.lock
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+
+# Beads
+.beads/*.db
+.beads/*.db-*
+
+# Claude plans
+.claude/plans/

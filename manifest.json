@@ -1,0 +1,10 @@
+{
+  "id": "claude-from-obsidian",
+  "name": "Claude from Obsidian",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "Communicate with Claude Shell CLI directly from Obsidian. Send selected text with commands and receive responses in modals.",
+  "author": "mfranc",
+  "authorUrl": "https://github.com/mfranc",
+  "isDesktopOnly": true
+}
