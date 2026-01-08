@@ -9,6 +9,7 @@ import { SessionManager } from './session-manager';
 import { SessionSelectorModal } from './session-selector-modal';
 import { CommandInputModal } from './command-input-modal';
 import { ResponseModal } from './response-modal';
+import { ClaudeSettingsTab } from './settings-tab';
 
 export default class ClaudeFromObsidianPlugin extends Plugin {
 	settings!: ClaudeFromObsidianSettings;
@@ -31,6 +32,9 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 
 		// Register commands
 		this.registerCommands();
+
+		// Add settings tab
+		this.addSettingTab(new ClaudeSettingsTab(this.app, this));
 	}
 
 	async onunload() {
@@ -227,8 +231,17 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 	/**
 	 * Handle "Manage Sessions" command
 	 */
-	private async handleManageSessions(): Promise<void> {
-		// TODO: Implement session management UI in Phase 8
-		new Notice('Session management coming in Phase 8');
+	async handleManageSessions(): Promise<void> {
+		const sessions = await this.sessionManager.getAllSessions();
+
+		let message = `Active Sessions: ${sessions.length}\n\n`;
+
+		for (const session of sessions) {
+			message += `${session.name} (${session.status})\n`;
+			message += `  Directory: ${session.workingDirectory}\n`;
+			message += `  Commands: ${session.commandHistory.length}\n\n`;
+		}
+
+		new Notice(message, 10000);
 	}
 }
