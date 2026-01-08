@@ -7,6 +7,9 @@ To make it easier to send commands from obsidian to shell and responses from she
 # Issue tracking
 This project will be using beads for issue tracking and progress tracking - check ISSUETRACKING.md for details on how to use it.
 
+# Git
+On each phase remember to commit the changes with comment etc
+
 # Features:
 
 ## Obsidian to claude shell communication
