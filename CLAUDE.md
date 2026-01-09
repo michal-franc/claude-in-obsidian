@@ -17,6 +17,10 @@ Always add logging to make it more easy for operator to test and run the plugin.
 
 Read ISSUETRACCKING.md before implementineg anything to familiarise youreslv with the BEADS framework to manage tasks.
 
+When given work from the user create basic plan - wait for the user to accept the plan - then move along with ISSUETRACKING.md process.
+
+During planning prefer splitting work into features. So given asks for lets say adding logging and also new feature. Split this work into two features.
+
 # Features:
 
 ## Obsidian to claude shell communication

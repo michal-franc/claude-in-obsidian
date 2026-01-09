@@ -8,22 +8,14 @@ import { stripAnsiCodes } from './utils';
 import { logger } from './logger';
 
 /**
- * Manages a single Claude Shell process
+ * Manages a Claude session (spawns fresh process for each command)
  */
 export class ClaudeProcess {
-	private process: ChildProcess | null = null;
 	private sessionId: string;
 	private workingDirectory: string;
 	private envVars: Record<string, string>;
-	private outputBuffer: string = '';
-	private isReady: boolean = false;
-	private readyPromise: Promise<void> | null = null;
-	private pendingCommand: {
-		resolve: (response: string) => void;
-		reject: (error: Error) => void;
-		timeoutId: NodeJS.Timeout;
-	} | null = null;
 	private commandTimeout: number = 30000; // 30 seconds
+	private isActive: boolean = true;
 
 	constructor(options: ClaudeProcessOptions, timeout?: number) {
 		this.sessionId = options.sessionId;
@@ -35,205 +27,130 @@ export class ClaudeProcess {
 	}
 
 	/**
-	 * Start the Claude process
+	 * Initialize the session (no-op, kept for compatibility)
 	 */
 	async start(): Promise<void> {
-		if (this.process) {
-			logger.error(`[Process ${this.sessionId}] Process already started`);
-			throw new Error('Process already started');
-		}
-
-		logger.info(`[Process ${this.sessionId}] Starting Claude process...`);
-		logger.debug(`[Process ${this.sessionId}] Working directory:`, this.workingDirectory);
-		logger.debug(`[Process ${this.sessionId}] Environment vars:`, Object.keys(this.envVars));
-
-		this.readyPromise = new Promise((resolve, reject) => {
-			try {
-				// Spawn Claude process with pipes
-				logger.debug(`[Process ${this.sessionId}] Spawning 'claude' command...`);
-				this.process = spawn('claude', [], {
-					cwd: this.workingDirectory,
-					stdio: ['pipe', 'pipe', 'pipe'],
-					env: { ...process.env, ...this.envVars },
-				});
-
-				const pid = this.process.pid;
-				logger.info(`[Process ${this.sessionId}] Claude process spawned with PID:`, pid);
-
-				// Set up stdout handler
-				this.process.stdout?.on('data', (data: Buffer) => {
-					this.handleOutput(data);
-				});
-
-				// Set up stderr handler
-				this.process.stderr?.on('data', (data: Buffer) => {
-					this.handleError(data);
-				});
-
-				// Set up exit handler
-				this.process.on('exit', (code: number | null) => {
-					this.handleExit(code);
-				});
-
-				// Set up error handler for spawn failures
-				this.process.on('error', (error: Error) => {
-					logger.error(`[Process ${this.sessionId}] Spawn error:`, error.message);
-					reject(new Error(`Failed to spawn Claude process: ${error.message}`));
-				});
-
-				// Wait for initial output to determine ready state
-				// Claude typically outputs some initial text when it starts
-				logger.debug(`[Process ${this.sessionId}] Waiting for ready state...`);
-				const readyTimeout = setTimeout(() => {
-					if (!this.isReady) {
-						logger.warn(`[Process ${this.sessionId}] Ready timeout reached, assuming ready`);
-						this.isReady = true;
-						resolve();
-					}
-				}, 2000); // 2 second timeout for ready detection
-
-				// Look for any initial output as a sign of readiness
-				const initialOutputHandler = () => {
-					logger.info(`[Process ${this.sessionId}] Process is ready (received initial output)`);
-					clearTimeout(readyTimeout);
-					this.isReady = true;
-					resolve();
-					this.process?.stdout?.off('data', initialOutputHandler);
-				};
-
-				this.process.stdout?.once('data', initialOutputHandler);
-
-			} catch (error) {
-				logger.error(`[Process ${this.sessionId}] Exception during start:`, error);
-				reject(error);
-			}
-		});
-
-		return this.readyPromise;
+		logger.info(`[Session ${this.sessionId}] Session initialized`);
+		logger.debug(`[Session ${this.sessionId}] Working directory:`, this.workingDirectory);
+		// No actual process to start - we spawn fresh for each command
+		this.isActive = true;
 	}
 
 	/**
-	 * Send a command to Claude and wait for response
+	 * Send a command to Claude (spawns fresh process with --print mode)
 	 */
 	async sendCommand(command: string, context?: string): Promise<string> {
-		logger.info(`[Process ${this.sessionId}] Sending command:`, command.substring(0, 100));
+		logger.info(`[Session ${this.sessionId}] Executing command:`, command.substring(0, 100));
 
-		if (!this.process || !this.isReady) {
-			logger.error(`[Process ${this.sessionId}] Process not ready`);
-			throw new Error('Process not ready');
-		}
-
-		if (this.pendingCommand) {
-			logger.error(`[Process ${this.sessionId}] Another command already in progress`);
-			throw new Error('Another command is already in progress');
-		}
-
-		if (context) {
-			logger.debug(`[Process ${this.sessionId}] Context provided, length:`, context.length);
+		if (!this.isActive) {
+			logger.error(`[Session ${this.sessionId}] Session not active`);
+			throw new Error('Session not active');
 		}
 
 		return new Promise((resolve, reject) => {
-			// Clear output buffer
-			this.outputBuffer = '';
-			logger.debug(`[Process ${this.sessionId}] Output buffer cleared`);
+			// Prepare input: context (if provided) + command
+			let input = '';
+			if (context) {
+				logger.debug(`[Session ${this.sessionId}] Including context, length:`, context.length);
+				input += `Here is some context:\n\n${context}\n\n`;
+			}
+			input += command;
+
+			logger.debug(`[Session ${this.sessionId}] Spawning claude --print --continue...`);
+
+			// Spawn fresh Claude process with --print and --continue flags
+			const claudeProcess = spawn('claude', ['--print', '--continue'], {
+				cwd: this.workingDirectory,
+				stdio: ['pipe', 'pipe', 'pipe'],
+				env: { ...process.env, ...this.envVars },
+			});
+
+			const pid = claudeProcess.pid;
+			logger.info(`[Session ${this.sessionId}] Claude process spawned with PID:`, pid);
+
+			let stdout = '';
+			let stderr = '';
 
 			// Set up timeout
 			const timeoutId = setTimeout(() => {
-				logger.error(`[Process ${this.sessionId}] Command timeout after ${this.commandTimeout}ms`);
-				this.pendingCommand = null;
+				logger.error(`[Session ${this.sessionId}] Command timeout after ${this.commandTimeout}ms`);
+				claudeProcess.kill('SIGKILL');
 				reject(new Error('Command timeout'));
 			}, this.commandTimeout);
 
-			// Store pending command info
-			this.pendingCommand = { resolve, reject, timeoutId };
-			logger.debug(`[Process ${this.sessionId}] Pending command registered, timeout: ${this.commandTimeout}ms`);
+			// Collect stdout
+			claudeProcess.stdout!.on('data', (data: Buffer) => {
+				const text = data.toString();
+				logger.debug(`[Session ${this.sessionId}] stdout:`, text.substring(0, 200));
+				stdout += text;
+			});
 
-			try {
-				// Send context if provided (using /paste command)
-				if (context) {
-					logger.debug(`[Process ${this.sessionId}] Sending /paste command...`);
-					this.process!.stdin!.write('/paste\n');
-					this.process!.stdin!.write(context + '\n');
-					logger.debug(`[Process ${this.sessionId}] Context sent`);
-				}
+			// Collect stderr
+			claudeProcess.stderr!.on('data', (data: Buffer) => {
+				const text = data.toString();
+				logger.debug(`[Session ${this.sessionId}] stderr:`, text.substring(0, 200));
+				stderr += text;
+			});
 
-				// Send the actual command
-				logger.debug(`[Process ${this.sessionId}] Sending command to stdin...`);
-				this.process!.stdin!.write(command + '\n');
-				logger.info(`[Process ${this.sessionId}] Command sent successfully`);
-			} catch (error) {
-				logger.error(`[Process ${this.sessionId}] Error writing to stdin:`, error);
+			// Handle process exit
+			claudeProcess.on('exit', (code: number | null) => {
 				clearTimeout(timeoutId);
-				this.pendingCommand = null;
+				logger.info(`[Session ${this.sessionId}] Process exited with code:`, code);
+
+				if (code === 0 && stdout.length > 0) {
+					// Success
+					const cleaned = this.cleanResponse(stdout);
+					logger.info(`[Session ${this.sessionId}] Command successful, response length:`, cleaned.length);
+					logger.debug(`[Session ${this.sessionId}] Response preview:`, cleaned.substring(0, 200));
+					resolve(cleaned);
+				} else if (stderr.length > 0) {
+					// Error
+					logger.error(`[Session ${this.sessionId}] Command failed:`, stderr);
+					reject(new Error(`Claude error: ${stderr}`));
+				} else {
+					// No output
+					logger.warn(`[Session ${this.sessionId}] No output received`);
+					reject(new Error('No response from Claude'));
+				}
+			});
+
+			// Handle spawn errors
+			claudeProcess.on('error', (error: Error) => {
+				clearTimeout(timeoutId);
+				logger.error(`[Session ${this.sessionId}] Spawn error:`, error.message);
+				reject(new Error(`Failed to spawn Claude: ${error.message}`));
+			});
+
+			// Write input and close stdin
+			try {
+				logger.debug(`[Session ${this.sessionId}] Writing to stdin...`);
+				claudeProcess.stdin!.write(input);
+				claudeProcess.stdin!.end();
+				logger.debug(`[Session ${this.sessionId}] Input sent, stdin closed`);
+			} catch (error) {
+				clearTimeout(timeoutId);
+				logger.error(`[Session ${this.sessionId}] Error writing to stdin:`, error);
+				claudeProcess.kill('SIGKILL');
 				reject(error);
 			}
 		});
 	}
 
 	/**
-	 * Stop the Claude process gracefully
+	 * Stop the session (mark as inactive)
 	 */
 	async stop(): Promise<void> {
-		if (!this.process) {
-			logger.debug(`[Process ${this.sessionId}] No process to stop`);
-			return;
-		}
-
-		logger.info(`[Process ${this.sessionId}] Stopping Claude process...`);
-		const pid = this.process.pid;
-
-		return new Promise((resolve) => {
-			const cleanup = () => {
-				logger.info(`[Process ${this.sessionId}] Process stopped, PID was:`, pid);
-				this.process = null;
-				this.isReady = false;
-				this.outputBuffer = '';
-				if (this.pendingCommand) {
-					clearTimeout(this.pendingCommand.timeoutId);
-					this.pendingCommand.reject(new Error('Process stopped'));
-					this.pendingCommand = null;
-				}
-				resolve();
-			};
-
-			// Try graceful shutdown first
-			try {
-				logger.debug(`[Process ${this.sessionId}] Attempting graceful shutdown with /exit...`);
-				this.process!.stdin!.write('/exit\n');
-			} catch (error) {
-				logger.warn(`[Process ${this.sessionId}] Failed to send /exit:`, error);
-				// Ignore errors when trying to exit gracefully
-			}
-
-			// Force kill after timeout
-			const killTimeout = setTimeout(() => {
-				logger.warn(`[Process ${this.sessionId}] Graceful shutdown timeout, force killing...`);
-				if (this.process) {
-					this.process.kill('SIGKILL');
-				}
-				cleanup();
-			}, 5000);
-
-			this.process!.once('exit', () => {
-				logger.debug(`[Process ${this.sessionId}] Process exited gracefully`);
-				clearTimeout(killTimeout);
-				cleanup();
-			});
-		});
+		logger.info(`[Session ${this.sessionId}] Stopping session...`);
+		this.isActive = false;
+		// No long-running process to kill
+		logger.info(`[Session ${this.sessionId}] Session stopped`);
 	}
 
 	/**
-	 * Check if process is running
+	 * Check if session is active
 	 */
 	isRunning(): boolean {
-		return this.process !== null && !this.process.killed;
-	}
-
-	/**
-	 * Get the process ID
-	 */
-	getPid(): number | undefined {
-		return this.process?.pid;
+		return this.isActive;
 	}
 
 	/**
@@ -244,87 +161,10 @@ export class ClaudeProcess {
 	}
 
 	/**
-	 * Handle stdout data
+	 * Get PID (always undefined as we don't maintain long-running process)
 	 */
-	private handleOutput(data: Buffer): void {
-		const text = data.toString();
-		logger.debug(`[Process ${this.sessionId}] stdout:`, text.substring(0, 200));
-		this.outputBuffer += text;
-
-		// If we have a pending command, check if response is complete
-		if (this.pendingCommand) {
-			logger.debug(`[Process ${this.sessionId}] Output received during pending command, scheduling completion check`);
-			// Simple heuristic: look for a pause in output or a prompt-like pattern
-			// This is a simplified version - real implementation might need more sophisticated detection
-			// For now, we'll use a timer-based approach
-			this.scheduleResponseCompletion();
-		}
-	}
-
-	/**
-	 * Schedule response completion check
-	 */
-	private scheduleResponseCompletion(): void {
-		if (!this.pendingCommand) {
-			return;
-		}
-
-		// Wait for output to stabilize (no new data for 500ms)
-		// This is a simple approach - could be improved with better prompt detection
-		logger.debug(`[Process ${this.sessionId}] Scheduling response completion check (500ms idle detection)`);
-		const checkTimer = setTimeout(() => {
-			if (this.pendingCommand && this.outputBuffer.length > 0) {
-				logger.info(`[Process ${this.sessionId}] Response complete (500ms idle), buffer size:`, this.outputBuffer.length);
-				const response = this.cleanResponse(this.outputBuffer);
-				logger.debug(`[Process ${this.sessionId}] Cleaned response length:`, response.length);
-				clearTimeout(this.pendingCommand.timeoutId);
-				this.pendingCommand.resolve(response);
-				this.pendingCommand = null;
-				this.outputBuffer = '';
-			}
-		}, 500);
-
-		// Store timer so we can cancel it if more data arrives
-		if (this.pendingCommand) {
-			const oldTimeout = this.pendingCommand.timeoutId;
-			this.pendingCommand.timeoutId = checkTimer;
-			clearTimeout(oldTimeout);
-		}
-	}
-
-	/**
-	 * Handle stderr data
-	 */
-	private handleError(data: Buffer): void {
-		const text = data.toString();
-		logger.warn(`[Process ${this.sessionId}] stderr:`, text);
-
-		// If this looks like a critical error and we have a pending command, reject it
-		if (this.pendingCommand && text.toLowerCase().includes('error')) {
-			logger.error(`[Process ${this.sessionId}] Critical error detected in stderr, rejecting pending command`);
-			clearTimeout(this.pendingCommand.timeoutId);
-			this.pendingCommand.reject(new Error(`Claude error: ${text}`));
-			this.pendingCommand = null;
-		}
-	}
-
-	/**
-	 * Handle process exit
-	 */
-	private handleExit(code: number | null): void {
-		logger.warn(`[Process ${this.sessionId}] Process exited with code:`, code);
-
-		// If we have a pending command, reject it
-		if (this.pendingCommand) {
-			logger.error(`[Process ${this.sessionId}] Process exited with pending command, rejecting`);
-			clearTimeout(this.pendingCommand.timeoutId);
-			this.pendingCommand.reject(new Error('Process exited unexpectedly'));
-			this.pendingCommand = null;
-		}
-
-		this.process = null;
-		this.isReady = false;
-		logger.info(`[Process ${this.sessionId}] Process cleanup complete`);
+	getPid(): number | undefined {
+		return undefined;
 	}
 
 	/**
