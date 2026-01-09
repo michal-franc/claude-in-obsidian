@@ -72,6 +72,34 @@ After each phase:
 2. Run `npm run build` to verify compilation
 3. Only then commit your changes
 
+## Feature Planning with ADR-style Documents
+
+**Use the `features/` folder to document and plan features before implementation.**
+
+### Structure
+Features are documented using ADR (Architecture Decision Record) style files:
+```
+features/
+  001-feature-name.md
+  002-another-feature.md
+  ...
+```
+
+### Feature Document Template
+Each feature file should include:
+1. **Title** - Clear feature name
+2. **Status** - Draft / Under Review / Approved / Implemented / Rejected
+3. **Context** - Why is this feature needed?
+4. **Decision** - What will be implemented?
+5. **Implementation Plan** - High-level approach
+6. **Consequences** - Trade-offs and implications
+
+### Workflow
+1. **Create** - Add a new numbered feature file in `features/`
+2. **Iterate** - Discuss and refine the feature document
+3. **Approve** - User marks status as "Approved"
+4. **Implement** - Only then proceed with implementation following the plan
+
 # Features:
 
 ## Obsidian to claude shell communication
