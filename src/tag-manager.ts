@@ -6,9 +6,10 @@ import { Editor } from 'obsidian';
 import { ActiveRequest, DocumentPosition } from './types';
 import { logger } from './logger';
 
-const CLAUDE_TAG_OPEN = '<CLAUDE Processing...>';
-const CLAUDE_TAG_CLOSE = '</CLAUDE>';
-const CLAUDE_SEPARATOR = '<!-- Claude -->';
+const CLAUDE_TAG_OPEN = '=== CLAUDE PROCESSING ===';
+const CLAUDE_TAG_CLOSE = '=== END CLAUDE ===';
+const CLAUDE_RESPONSE_START = '```ad-claude';
+const CLAUDE_RESPONSE_END = '```';
 
 /**
  * Result of tag injection
@@ -45,12 +46,11 @@ export class TagManager {
 			let endPos: DocumentPosition;
 
 			if (hasSelection) {
-				// Wrap selected text with tags
-				taggedContent = `${CLAUDE_TAG_OPEN}${selectedText}${CLAUDE_TAG_CLOSE}`;
+				// Wrap selected text with tags on separate lines
+				taggedContent = `${CLAUDE_TAG_OPEN}\n${selectedText}\n${CLAUDE_TAG_CLOSE}`;
 
 				// Get selection boundaries
 				const from = editor.getCursor('from');
-				const to = editor.getCursor('to');
 
 				startPos = { line: from.line, ch: from.ch };
 
@@ -59,23 +59,23 @@ export class TagManager {
 
 				// Calculate end position after insertion
 				const lines = taggedContent.split('\n');
-				if (lines.length === 1) {
-					endPos = { line: from.line, ch: from.ch + taggedContent.length };
-				} else {
-					endPos = {
-						line: from.line + lines.length - 1,
-						ch: lines[lines.length - 1].length
-					};
-				}
+				endPos = {
+					line: from.line + lines.length - 1,
+					ch: lines[lines.length - 1].length
+				};
 			} else {
-				// No selection - insert empty tags at cursor
-				taggedContent = `${CLAUDE_TAG_OPEN}${CLAUDE_TAG_CLOSE}`;
+				// No selection - insert tags at cursor with empty line between
+				taggedContent = `${CLAUDE_TAG_OPEN}\n\n${CLAUDE_TAG_CLOSE}`;
 				startPos = { line: cursor.line, ch: cursor.ch };
 
 				// Insert at cursor
 				editor.replaceRange(taggedContent, cursor);
 
-				endPos = { line: cursor.line, ch: cursor.ch + taggedContent.length };
+				const lines = taggedContent.split('\n');
+				endPos = {
+					line: cursor.line + lines.length - 1,
+					ch: lines[lines.length - 1].length
+				};
 			}
 
 			logger.info('[TagManager] Tags injected:', { startPos, endPos });
@@ -113,56 +113,63 @@ export class TagManager {
 
 		// Search in a range around the expected position
 		const searchStartLine = Math.max(0, expectedStartPos.line - 5);
-		const searchEndLine = Math.min(lines.length, expectedStartPos.line + 10);
+		const searchEndLine = Math.min(lines.length, expectedStartPos.line + 20);
 
+		// Find the opening tag line
+		let openLineNum = -1;
+		let openCh = 0;
 		for (let lineNum = searchStartLine; lineNum < searchEndLine; lineNum++) {
 			const line = lines[lineNum];
 			const openIdx = line.indexOf(CLAUDE_TAG_OPEN);
-
 			if (openIdx >= 0) {
-				// Found opening tag, now find closing tag
-				const closeTagSearch = docContent.substring(
-					docContent.split('\n').slice(0, lineNum).join('\n').length + openIdx
-				);
-				const closeIdx = closeTagSearch.indexOf(CLAUDE_TAG_CLOSE);
-
-				if (closeIdx >= 0) {
-					// Calculate positions
-					const startPos = { line: lineNum, ch: openIdx };
-
-					// Find end position
-					const contentBeforeClose = closeTagSearch.substring(0, closeIdx + CLAUDE_TAG_CLOSE.length);
-					const closeLines = contentBeforeClose.split('\n');
-					const endLine = lineNum + closeLines.length - 1;
-					const endCh = closeLines.length === 1
-						? openIdx + contentBeforeClose.length
-						: closeLines[closeLines.length - 1].length;
-
-					// Extract content between tags
-					const contentStart = openIdx + CLAUDE_TAG_OPEN.length;
-					const fullContent = closeTagSearch.substring(
-						CLAUDE_TAG_OPEN.length,
-						closeIdx
-					);
-
-					logger.debug('[TagManager] Tags found:', { startPos, endPos: { line: endLine, ch: endCh } });
-
-					return {
-						found: true,
-						startPos,
-						endPos: { line: endLine, ch: endCh },
-						content: fullContent,
-					};
-				}
+				openLineNum = lineNum;
+				openCh = openIdx;
+				break;
 			}
 		}
 
-		logger.warn('[TagManager] Tags not found near expected position');
-		return { found: false };
+		if (openLineNum === -1) {
+			logger.warn('[TagManager] Opening tag not found');
+			return { found: false };
+		}
+
+		// Find the closing tag line (search from after opening tag)
+		let closeLineNum = -1;
+		let closeCh = 0;
+		for (let lineNum = openLineNum + 1; lineNum < Math.min(lines.length, openLineNum + 50); lineNum++) {
+			const line = lines[lineNum];
+			const closeIdx = line.indexOf(CLAUDE_TAG_CLOSE);
+			if (closeIdx >= 0) {
+				closeLineNum = lineNum;
+				closeCh = closeIdx + CLAUDE_TAG_CLOSE.length;
+				break;
+			}
+		}
+
+		if (closeLineNum === -1) {
+			logger.warn('[TagManager] Closing tag not found');
+			return { found: false };
+		}
+
+		// Extract content between tags (excluding the tag lines themselves)
+		const contentLines = lines.slice(openLineNum + 1, closeLineNum);
+		const content = contentLines.join('\n');
+
+		const startPos = { line: openLineNum, ch: openCh };
+		const endPos = { line: closeLineNum, ch: closeCh };
+
+		logger.debug('[TagManager] Tags found:', { startPos, endPos });
+
+		return {
+			found: true,
+			startPos,
+			endPos,
+			content,
+		};
 	}
 
 	/**
-	 * Replace tags with response (keeps original text, adds separator and response)
+	 * Replace tags with response (keeps original text, wraps response in admonition)
 	 */
 	replaceWithResponse(
 		editor: Editor,
@@ -181,15 +188,16 @@ export class TagManager {
 		try {
 			// Build the replacement text:
 			// original text
-			// <!-- Claude -->
+			// ```ad-claude
 			// response
+			// ```
 			const originalText = request.originalText;
 			let replacement: string;
 
 			if (originalText.length > 0) {
-				replacement = `${originalText}\n${CLAUDE_SEPARATOR}\n${response}`;
+				replacement = `${originalText}\n${CLAUDE_RESPONSE_START}\n${response}\n${CLAUDE_RESPONSE_END}`;
 			} else {
-				replacement = `${CLAUDE_SEPARATOR}\n${response}`;
+				replacement = `${CLAUDE_RESPONSE_START}\n${response}\n${CLAUDE_RESPONSE_END}`;
 			}
 
 			// Replace the entire tagged region
@@ -225,14 +233,15 @@ export class TagManager {
 		}
 
 		try {
-			// Keep original text and add error
+			// Keep original text and add error in admonition
 			const originalText = request.originalText;
+			const errorContent = `**Error:** ${errorMessage}`;
 			let replacement: string;
 
 			if (originalText.length > 0) {
-				replacement = `${originalText}\n${CLAUDE_SEPARATOR}\n**Error:** ${errorMessage}`;
+				replacement = `${originalText}\n${CLAUDE_RESPONSE_START}\n${errorContent}\n${CLAUDE_RESPONSE_END}`;
 			} else {
-				replacement = `${CLAUDE_SEPARATOR}\n**Error:** ${errorMessage}`;
+				replacement = `${CLAUDE_RESPONSE_START}\n${errorContent}\n${CLAUDE_RESPONSE_END}`;
 			}
 
 			editor.replaceRange(
