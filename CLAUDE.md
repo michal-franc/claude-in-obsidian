@@ -11,13 +11,34 @@ This project will be using beads for issue tracking and progress tracking - chec
 On each phase remember to commit the changes with comment etc
 
 # Development Rules
+
+## CRITICAL: Always Present Plan Before Implementation
+
+**STOP AND PRESENT A PLAN FIRST - DO NOT START CODING WITHOUT USER APPROVAL**
+
+When the user asks you to implement something, you MUST:
+1. **STOP** - Do not start writing code immediately
+2. **ANALYZE** - Understand the full scope of the request
+3. **PLAN** - Create a detailed plan with approach options if applicable
+4. **PRESENT** - Show the plan to the user and ask for approval
+5. **WAIT** - Wait for explicit user approval before proceeding
+6. **IMPLEMENT** - Only after approval, proceed with implementation
+
+This rule applies to:
+- Bug fixes
+- New features
+- Refactoring
+- Any code changes
+
+Exception: You may skip planning for trivial tasks like typo fixes or single-line changes.
+
+## Other Development Rules
+
 Always add unit tests to the developed code and ensure you are running them to verify if they are passing.
 
 Always add logging to make it more easy for operator to test and run the plugin.
 
 Read ISSUETRACCKING.md before implementineg anything to familiarise youreslv with the BEADS framework to manage tasks.
-
-When given work from the user create basic plan - wait for the user to accept the plan - then move along with ISSUETRACKING.md process.
 
 During planning prefer splitting work into features. So given asks for lets say adding logging and also new feature. Split this work into two features.
 
