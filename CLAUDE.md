@@ -35,23 +35,32 @@ This rule applies to:
 
 Exception: You may skip planning for trivial tasks like typo fixes or single-line changes.
 
-## CRITICAL: Always Write and Run Unit Tests
+## Unit Testing Guidelines
 
-**EVERY CODE CHANGE MUST HAVE TESTS**
+**Write tests when they add value**
 
-Before committing any code changes, you MUST:
-1. **Write unit tests** for all new functions/methods/classes
-2. **Run the tests** to verify they pass: `npm test`
-3. **Add tests to your commit** - code + tests together
-4. **Fix failing tests** before moving forward
+Unit tests are important but not always necessary. Use your judgment:
 
-This applies to:
-- New features
-- Bug fixes
-- Refactoring
-- Any code that can be tested
+**DO write tests for:**
+- Pure utility functions (easy to test, high value)
+- Complex business logic
+- Data transformations
+- Algorithms and calculations
+- Critical bug fixes
 
-Exception: Documentation-only changes don't need tests.
+**DON'T write tests for:**
+- Simple getters/setters
+- UI/modal code (hard to test, low value)
+- IPC/system integration (needs real environment)
+- Prototype/exploratory code
+- Trivial pass-through functions
+
+**When you do write tests:**
+1. Run `npm test` before committing
+2. Include tests with your code commit
+3. Fix failing tests before proceeding
+
+We'll expand test coverage incrementally as the codebase matures.
 
 ## Other Development Rules
 
