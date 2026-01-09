@@ -84,6 +84,23 @@ export class ClaudeSettingsTab extends PluginSettingTab {
 		// Session information
 		containerEl.createEl('h3', { text: 'Session Management' });
 
+		// Session retention setting
+		new Setting(containerEl)
+			.setName('Session Retention')
+			.setDesc('Automatically remove stopped sessions older than this (days). Set to 0 to keep forever.')
+			.addText((text) =>
+				text
+					.setPlaceholder('7')
+					.setValue(String(this.plugin.settings.sessionRetentionDays))
+					.onChange(async (value) => {
+						const days = parseInt(value);
+						if (!isNaN(days) && days >= 0) {
+							this.plugin.settings.sessionRetentionDays = days;
+							await this.plugin.saveSettings();
+						}
+					})
+			);
+
 		new Setting(containerEl)
 			.setName('Active Sessions')
 			.setDesc(`Currently running: ${this.plugin.processManager.getSessionCount()}`)

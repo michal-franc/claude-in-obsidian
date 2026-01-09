@@ -2,9 +2,10 @@
  * UI Modals for session selection and creation
  */
 
-import { App, Modal, Setting } from 'obsidian';
-import { SessionMetadata, SessionSelectCallback, NewSessionCallback } from './types';
+import { App, Modal, Setting, Notice } from 'obsidian';
+import { SessionMetadata, SessionSelectCallback, NewSessionCallback, ClearStoppedSessionsCallback } from './types';
 import { formatRelativeTime, validateDirectory } from './utils';
+import { logger } from './logger';
 
 /**
  * Modal for selecting an existing session or creating a new one
@@ -12,11 +13,13 @@ import { formatRelativeTime, validateDirectory } from './utils';
 export class SessionSelectorModal extends Modal {
 	private sessions: SessionMetadata[];
 	private onSelect: SessionSelectCallback;
+	private onClearStopped?: ClearStoppedSessionsCallback;
 
-	constructor(app: App, sessions: SessionMetadata[], onSelect: SessionSelectCallback) {
+	constructor(app: App, sessions: SessionMetadata[], onSelect: SessionSelectCallback, onClearStopped?: ClearStoppedSessionsCallback) {
 		super(app);
 		this.sessions = sessions;
 		this.onSelect = onSelect;
+		this.onClearStopped = onClearStopped;
 	}
 
 	onOpen(): void {
@@ -42,6 +45,27 @@ export class SessionSelectorModal extends Modal {
 						}).open();
 					})
 			);
+
+		// Clear Stopped Sessions button (only show if there are stopped sessions and callback provided)
+		const stoppedCount = this.sessions.filter(s => s.status === 'stopped').length;
+		if (this.onClearStopped && stoppedCount > 0) {
+			new Setting(contentEl)
+				.setName('Clear Stopped Sessions')
+				.setDesc(`Remove ${stoppedCount} stopped session${stoppedCount > 1 ? 's' : ''} from the list`)
+				.addButton((btn) =>
+					btn
+						.setButtonText('Clear Stopped')
+						.setWarning()
+						.onClick(async () => {
+							if (this.onClearStopped) {
+								logger.info('[SessionSelectorModal] User clicked Clear Stopped Sessions');
+								const removed = await this.onClearStopped();
+								new Notice(`Cleared ${removed} stopped session${removed !== 1 ? 's' : ''}`);
+								this.close();
+							}
+						})
+				);
+		}
 
 		contentEl.createEl('h3', { text: 'Existing Sessions' });
 

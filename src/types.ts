@@ -48,6 +48,8 @@ export interface ClaudeFromObsidianSettings {
 	commandTimeout: number;
 	/** Maximum number of commands to store in history */
 	commandHistoryLimit: number;
+	/** Session retention in days (0 = keep forever) */
+	sessionRetentionDays: number;
 }
 
 /**
@@ -58,6 +60,7 @@ export const DEFAULT_SETTINGS: ClaudeFromObsidianSettings = {
 	autoReconnectSessions: true,
 	commandTimeout: 30000, // 30 seconds
 	commandHistoryLimit: 10,
+	sessionRetentionDays: 7, // Keep sessions for 7 days by default
 };
 
 /**
@@ -74,6 +77,11 @@ export type NewSessionCallback = (name: string, workingDir: string) => void;
  * Callback for command submission
  */
 export type CommandSubmitCallback = (command: string) => void;
+
+/**
+ * Callback for clearing stopped sessions
+ */
+export type ClearStoppedSessionsCallback = () => Promise<number>;
 
 /**
  * Callback for response actions

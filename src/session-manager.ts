@@ -18,10 +18,19 @@ export class SessionManager {
 	private dataFilePath: string;
 	private processManager: ClaudeProcessManager;
 	private lastSessionId: string | undefined;
+	private retentionDays: number = 0; // 0 = keep forever
 
 	constructor(dataDir: string, processManager: ClaudeProcessManager) {
 		this.dataFilePath = join(dataDir, 'sessions.json');
 		this.processManager = processManager;
+	}
+
+	/**
+	 * Set the session retention period in days (0 = keep forever)
+	 */
+	setRetentionDays(days: number): void {
+		this.retentionDays = days;
+		logger.debug('[SessionManager] Retention days set to:', days);
 	}
 
 	/**
@@ -176,13 +185,69 @@ export class SessionManager {
 	}
 
 	/**
+	 * Clean up stale sessions based on:
+	 * 1. External sessions that are stopped and process no longer running
+	 * 2. Any stopped sessions older than retention period (if set)
+	 * Called automatically on startup to prevent session accumulation
+	 */
+	private async cleanupStaleExternalSessions(): Promise<number> {
+		logger.info('[SessionManager] Cleaning up stale sessions...');
+		const sessionsToRemove: string[] = [];
+		const now = Date.now();
+		const retentionMs = this.retentionDays > 0 ? this.retentionDays * 24 * 60 * 60 * 1000 : 0;
+
+		for (const [id, session] of this.sessions.entries()) {
+			let shouldRemove = false;
+			let reason = '';
+
+			// Check 1: External sessions that are stopped and process no longer running
+			if (session.name.startsWith('External Claude') && session.status === 'stopped') {
+				if (!session.pid || !checkPidExists(session.pid)) {
+					shouldRemove = true;
+					reason = 'external session with stopped/missing process';
+				}
+			}
+
+			// Check 2: Any stopped session older than retention period
+			if (!shouldRemove && retentionMs > 0 && session.status === 'stopped') {
+				const sessionAge = now - session.lastUsedAt;
+				if (sessionAge > retentionMs) {
+					shouldRemove = true;
+					reason = `session older than ${this.retentionDays} days`;
+				}
+			}
+
+			if (shouldRemove) {
+				logger.debug('[SessionManager] Marking session for removal:', { id, name: session.name, reason });
+				sessionsToRemove.push(id);
+			}
+		}
+
+		// Remove the stale sessions
+		for (const id of sessionsToRemove) {
+			this.sessions.delete(id);
+			logger.info('[SessionManager] Removed stale session:', id);
+		}
+
+		if (sessionsToRemove.length > 0) {
+			logger.info('[SessionManager] Cleaned up stale sessions, count:', sessionsToRemove.length);
+		}
+
+		return sessionsToRemove.length;
+	}
+
+	/**
 	 * Detect existing sessions on startup
 	 */
 	async detectExistingSessions(): Promise<SessionMetadata[]> {
 		logger.info('[SessionManager] Detecting existing sessions...');
+
+		// First, clean up stale external sessions to prevent accumulation
+		await this.cleanupStaleExternalSessions();
+
 		const detected: SessionMetadata[] = [];
 
-		// First, check our managed sessions
+		// Check our managed sessions
 		for (const [id, session] of this.sessions.entries()) {
 			logger.debug('[SessionManager] Checking session:', { id, name: session.name, pid: session.pid, status: session.status });
 			if (session.pid && checkPidExists(session.pid)) {
@@ -321,5 +386,38 @@ export class SessionManager {
 	 */
 	async getSessionsByStatus(status: SessionMetadata['status']): Promise<SessionMetadata[]> {
 		return Array.from(this.sessions.values()).filter(s => s.status === status);
+	}
+
+	/**
+	 * Clear all stopped sessions (both external and user-created)
+	 * Returns the number of sessions removed
+	 */
+	async clearStoppedSessions(): Promise<number> {
+		logger.info('[SessionManager] Clearing all stopped sessions...');
+		const sessionsToRemove: string[] = [];
+
+		for (const [id, session] of this.sessions.entries()) {
+			if (session.status === 'stopped') {
+				logger.debug('[SessionManager] Marking stopped session for removal:', { id, name: session.name });
+				sessionsToRemove.push(id);
+			}
+		}
+
+		// Remove the stopped sessions
+		for (const id of sessionsToRemove) {
+			this.sessions.delete(id);
+			if (this.lastSessionId === id) {
+				this.lastSessionId = undefined;
+			}
+		}
+
+		if (sessionsToRemove.length > 0) {
+			await this.saveToDisk();
+			logger.info('[SessionManager] Cleared stopped sessions, count:', sessionsToRemove.length);
+		} else {
+			logger.info('[SessionManager] No stopped sessions to clear');
+		}
+
+		return sessionsToRemove.length;
 	}
 }

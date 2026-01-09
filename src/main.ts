@@ -41,6 +41,7 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			const dataDir = this.app.vault.configDir + '/plugins/claude-from-obsidian';
 			logger.debug('Initializing session manager with data dir:', dataDir);
 			this.sessionManager = new SessionManager(dataDir, this.processManager);
+			this.sessionManager.setRetentionDays(this.settings.sessionRetentionDays);
 			await this.sessionManager.initialize();
 			logger.info('Session manager initialized');
 
@@ -223,9 +224,18 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 	private showSessionSelector(): Promise<string | null> {
 		return new Promise((resolve) => {
 			this.sessionManager.getAllSessions().then((sessions) => {
-				new SessionSelectorModal(this.app, sessions, (sessionId) => {
-					resolve(sessionId);
-				}).open();
+				new SessionSelectorModal(
+					this.app,
+					sessions,
+					(sessionId) => {
+						resolve(sessionId);
+					},
+					async () => {
+						// Clear stopped sessions callback
+						const removed = await this.sessionManager.clearStoppedSessions();
+						return removed;
+					}
+				).open();
 			});
 		});
 	}
