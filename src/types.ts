@@ -109,3 +109,44 @@ export interface SessionsData {
 	/** Last active session ID */
 	lastSessionId?: string;
 }
+
+/**
+ * Position in a document
+ */
+export interface DocumentPosition {
+	line: number;
+	ch: number;
+}
+
+/**
+ * Status of a Claude request
+ */
+export type RequestStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'orphaned';
+
+/**
+ * Tracks an active or queued Claude request
+ */
+export interface ActiveRequest {
+	/** Unique ID for this request */
+	requestId: string;
+	/** Session ID this request belongs to */
+	sessionId: string;
+	/** File path where tags were injected */
+	filePath: string;
+	/** Start position of injected tags */
+	tagStartPos: DocumentPosition;
+	/** End position of injected tags */
+	tagEndPos: DocumentPosition;
+	/** The command sent to Claude */
+	command: string;
+	/** Original selected text (if any) */
+	originalText: string;
+	/** When the request was created */
+	startTime: number;
+	/** Current status */
+	status: RequestStatus;
+	/** Response from Claude (when completed) */
+	response?: string;
+	/** Error message (when failed) */
+	error?: string;
+}

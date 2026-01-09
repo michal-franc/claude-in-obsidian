@@ -149,3 +149,73 @@
 	margin-bottom: 16px;
 	font-weight: 500;
 }
+
+/* Status Bar */
+.claude-status-bar {
+	cursor: pointer;
+	padding: 0 8px;
+	border-radius: 4px;
+	transition: background-color 0.2s;
+}
+
+.claude-status-bar:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.claude-status-idle {
+	color: var(--text-muted);
+}
+
+.claude-status-processing {
+	color: var(--text-accent);
+}
+
+.claude-status-warning {
+	color: var(--text-warning, #e6a700);
+	font-weight: 500;
+}
+
+.claude-status-error {
+	color: var(--text-error);
+}
+
+/* Orphaned Response Modal */
+.claude-orphaned-response-modal {
+	max-width: 600px;
+}
+
+.claude-orphaned-explanation {
+	color: var(--text-muted);
+	margin-bottom: 16px;
+}
+
+.claude-orphaned-command {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 8px 12px;
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	max-height: 100px;
+	overflow-y: auto;
+	white-space: pre-wrap;
+}
+
+.claude-orphaned-response {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 12px;
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	max-height: 300px;
+	overflow-y: auto;
+	white-space: pre-wrap;
+}
+
+.claude-orphaned-buttons {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 16px;
+}

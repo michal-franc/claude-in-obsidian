@@ -2,20 +2,25 @@
  * Claude from Obsidian Plugin - Main Entry Point
  */
 
-import { Editor, MarkdownView, Notice, Plugin } from 'obsidian';
-import { ClaudeFromObsidianSettings, DEFAULT_SETTINGS } from './types';
+import { Editor, MarkdownView, Notice, Plugin, TFile } from 'obsidian';
+import { ClaudeFromObsidianSettings, DEFAULT_SETTINGS, ActiveRequest } from './types';
 import { ClaudeProcessManager } from './process-manager';
 import { SessionManager } from './session-manager';
 import { SessionSelectorModal } from './session-selector-modal';
 import { CommandInputModal } from './command-input-modal';
-import { ResponseModal } from './response-modal';
 import { ClaudeSettingsTab } from './settings-tab';
+import { StatusBarManager } from './status-bar-manager';
+import { RequestManager } from './request-manager';
+import { TagManager } from './tag-manager';
 import { logger } from './logger';
 
 export default class ClaudeFromObsidianPlugin extends Plugin {
 	settings!: ClaudeFromObsidianSettings;
 	processManager!: ClaudeProcessManager;
 	sessionManager!: SessionManager;
+	statusBarManager!: StatusBarManager;
+	requestManager!: RequestManager;
+	tagManager!: TagManager;
 
 	async onload() {
 		logger.info('========================================');
@@ -55,6 +60,23 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			this.addSettingTab(new ClaudeSettingsTab(this.app, this));
 			logger.info('Settings tab added');
 
+			// Initialize status bar
+			logger.debug('Initializing status bar...');
+			this.statusBarManager = new StatusBarManager(this, this.app);
+			this.statusBarManager.initialize();
+			logger.info('Status bar initialized');
+
+			// Initialize request manager
+			logger.debug('Initializing request manager...');
+			this.requestManager = new RequestManager();
+			this.requestManager.setCompletedCallback((request) => this.handleRequestCompleted(request));
+			logger.info('Request manager initialized');
+
+			// Initialize tag manager
+			logger.debug('Initializing tag manager...');
+			this.tagManager = new TagManager();
+			logger.info('Tag manager initialized');
+
 			logger.info('Plugin loaded successfully');
 		} catch (error) {
 			logger.error('Failed to load plugin:', error);
@@ -68,6 +90,12 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		logger.info('========================================');
 
 		try {
+			// Clean up status bar
+			if (this.statusBarManager) {
+				logger.debug('Cleaning up status bar...');
+				this.statusBarManager.destroy();
+			}
+
 			// Terminate all Claude processes
 			logger.debug('Terminating all Claude processes...');
 			await this.processManager.terminateAll();
@@ -160,7 +188,7 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 	}
 
 	/**
-	 * Execute the command workflow for a session
+	 * Execute the command workflow for a session (non-blocking)
 	 */
 	private async executeCommandWorkflow(
 		sessionId: string,
@@ -185,36 +213,159 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		}
 		logger.info('Command entered:', command.substring(0, 100));
 
-		// Step 3: Execute and show response
-		logger.debug('Opening response modal...');
-		const responseModal = new ResponseModal(this.app, (action, text) => {
-			this.handleResponseAction(action, text, editor);
-		});
-		responseModal.open();
-		responseModal.setLoading(true);
+		// Step 3: Inject tags into document
+		logger.debug('Injecting tags into document...');
+		const tagResult = this.tagManager.injectTags(editor, selectedText);
+		if (!tagResult.success) {
+			logger.error('Failed to inject tags:', tagResult.error);
+			new Notice('Failed to inject tags');
+			return;
+		}
+		logger.info('Tags injected successfully');
+
+		// Get the current file path
+		const activeFile = this.app.workspace.getActiveFile();
+		const filePath = activeFile?.path || 'unknown';
+
+		// Step 4: Create request and queue it
+		const request = this.requestManager.createRequest(
+			sessionId,
+			filePath,
+			command,
+			selectedText,
+			tagResult.startPos,
+			tagResult.endPos
+		);
+		logger.info('Request created:', request.requestId);
+
+		// Step 5: Update status bar with queue info
+		const queueLen = this.requestManager.getQueueLength();
+		if (queueLen > 1) {
+			this.statusBarManager.setProcessing(`Processing... (${queueLen - 1} queued)`);
+		} else {
+			this.statusBarManager.setProcessing('Processing...');
+		}
+
+		// Step 6: Process the queue (non-blocking)
+		this.processNextRequest(editor);
+
+		// Control returns to user immediately
+		new Notice('Claude is processing your request...', 2000);
+	}
+
+	/**
+	 * Process the next request in the queue
+	 */
+	private async processNextRequest(editor: Editor): Promise<void> {
+		// Check if already processing
+		if (this.requestManager.hasActiveRequest()) {
+			logger.debug('Already processing a request, will queue');
+			return;
+		}
+
+		const request = this.requestManager.getNextRequest();
+		if (!request) {
+			logger.debug('No request to process');
+			this.statusBarManager.setIdle();
+			return;
+		}
+
+		logger.info('Processing request:', request.requestId);
 
 		try {
-			logger.info('Executing command on Claude process...');
-			const startTime = Date.now();
-			const response = await this.executeCommand(sessionId, command, selectedText);
-			const duration = Date.now() - startTime;
-			logger.info(`Command executed successfully in ${duration}ms`);
-			logger.debug('Response length:', response.length);
-			logger.debug('Response preview:', response.substring(0, 200));
+			// Execute the command
+			const response = await this.executeCommand(
+				request.sessionId,
+				request.command,
+				request.originalText
+			);
 
-			responseModal.setResponse(response);
+			// Check if tags are still intact
+			if (!this.tagManager.areTagsIntact(editor, request)) {
+				logger.warn('Tags were modified, orphaning request');
+				this.requestManager.orphanRequest(response);
+				return;
+			}
+
+			// Replace tags with response
+			const replaced = this.tagManager.replaceWithResponse(editor, request, response);
+			if (!replaced) {
+				logger.warn('Failed to replace tags, orphaning request');
+				this.requestManager.orphanRequest(response);
+				return;
+			}
+
+			// Mark request as completed
+			this.requestManager.completeRequest(response);
 
 			// Add to history
-			logger.debug('Adding command to history...');
 			await this.sessionManager.addCommandToHistory(
-				sessionId,
-				command,
+				request.sessionId,
+				request.command,
 				this.settings.commandHistoryLimit
 			);
-			logger.debug('Command added to history');
+
 		} catch (error) {
-			logger.error('Command execution failed:', error);
-			responseModal.setError((error as Error).message);
+			logger.error('Request failed:', error);
+
+			// Try to inject error into tags
+			const errorMsg = (error as Error).message;
+			const injected = this.tagManager.injectError(editor, request, errorMsg);
+
+			if (!injected) {
+				// Tags were modified, orphan the request with error
+				this.requestManager.orphanRequest();
+			} else {
+				this.requestManager.failRequest(errorMsg);
+			}
+		}
+	}
+
+	/**
+	 * Handle completed request (callback from RequestManager)
+	 */
+	private handleRequestCompleted(request: ActiveRequest): void {
+		logger.info('Request completed:', {
+			requestId: request.requestId,
+			status: request.status,
+		});
+
+		// Check if there are more requests in queue
+		const status = this.requestManager.getStatus();
+
+		if (status.queueLength > 0) {
+			// Update status bar with queue info
+			this.statusBarManager.setProcessing(`Processing... (${status.queueLength} queued)`);
+
+			// Process next request
+			const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (activeView) {
+				this.processNextRequest(activeView.editor);
+			} else {
+				logger.warn('No active editor, cannot process next request');
+				// Orphan remaining requests
+				while (this.requestManager.getQueueLength() > 0) {
+					const next = this.requestManager.getNextRequest();
+					if (next) {
+						this.requestManager.orphanRequest();
+					}
+				}
+			}
+		} else if (!status.active) {
+			// No more requests, update status bar
+			if (request.status === 'orphaned') {
+				// Show warning with orphaned response
+				this.statusBarManager.setWarning(
+					request.response || 'Response unavailable',
+					request.command
+				);
+				new Notice('Claude response ready - click status bar to view', 5000);
+			} else if (request.status === 'failed') {
+				this.statusBarManager.setError(request.error || 'Request failed');
+				setTimeout(() => this.statusBarManager.setIdle(), 5000);
+			} else {
+				this.statusBarManager.setIdle();
+			}
 		}
 	}
 
@@ -284,29 +435,6 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		// Send command
 		logger.debug('Sending command to active process...');
 		return await process.sendCommand(command, context);
-	}
-
-	/**
-	 * Handle response action (copy/insert/replace)
-	 */
-	private handleResponseAction(
-		action: 'copy' | 'insert' | 'replace',
-		text: string,
-		editor: Editor
-	): void {
-		switch (action) {
-			case 'copy':
-				navigator.clipboard.writeText(text);
-				break;
-
-			case 'insert':
-				editor.replaceSelection(editor.getSelection() + text);
-				break;
-
-			case 'replace':
-				editor.replaceSelection(text);
-				break;
-		}
 	}
 
 	/**
