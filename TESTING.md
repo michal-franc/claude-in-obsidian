@@ -13,10 +13,10 @@ Before testing:
 ## Installation & Setup Tests
 
 ### Test 1: Plugin Installation
-- [ ] Plugin files exist in `.obsidian/plugins/claude-from-obsidian/`
-- [ ] `main.js` and `manifest.json` present
-- [ ] Plugin appears in Obsidian Settings → Community Plugins
-- [ ] Plugin can be enabled without errors
+- [x] Plugin files exist in `.obsidian/plugins/claude-from-obsidian/`
+- [x] `main.js` and `manifest.json` present
+- [x] Plugin appears in Obsidian Settings → Community Plugins
+- [x] Plugin can be enabled without errors
 
 ### Test 2: Plugin Load
 - [ ] Console shows "Loading Claude from Obsidian plugin"

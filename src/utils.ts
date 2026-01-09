@@ -143,3 +143,48 @@ export function validateDirectory(path: string): { valid: boolean; error?: strin
 export function sleep(ms: number): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+/**
+ * Find all running Claude processes on the system
+ * @returns Array of process information {pid, command, cwd}
+ */
+export async function findRunningClaudeProcesses(): Promise<Array<{pid: number, command: string, cwd?: string}>> {
+	const { exec } = require('child_process');
+	const { promisify } = require('util');
+	const execAsync = promisify(exec);
+
+	try {
+		// Use ps to find claude processes
+		// We look for processes with 'claude' in the command
+		const { stdout } = await execAsync('ps aux | grep -i "\\bclaude\\b" | grep -v grep');
+
+		const processes: Array<{pid: number, command: string, cwd?: string}> = [];
+		const lines = stdout.split('\n').filter((line: string) => line.trim().length > 0);
+
+		for (const line of lines) {
+			const parts = line.trim().split(/\s+/);
+			if (parts.length >= 11) {
+				const pid = parseInt(parts[1], 10);
+				const command = parts.slice(10).join(' ');
+
+				// Only include if it looks like a Claude shell process
+				if (command.includes('claude') && !isNaN(pid)) {
+					try {
+						// Try to get working directory of the process
+						const { stdout: cwdOut } = await execAsync(`lsof -a -p ${pid} -d cwd -Fn | grep '^n' | cut -c2-`);
+						const cwd = cwdOut.trim();
+						processes.push({ pid, command, cwd });
+					} catch {
+						// If we can't get cwd, just include without it
+						processes.push({ pid, command });
+					}
+				}
+			}
+		}
+
+		return processes;
+	} catch (error) {
+		// If no processes found or error, return empty array
+		return [];
+	}
+}

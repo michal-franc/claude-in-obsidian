@@ -6,8 +6,9 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { SessionMetadata, SessionsData } from './types';
-import { generateSessionId, checkPidExists, resolveWorkingDirectory } from './utils';
+import { generateSessionId, checkPidExists, resolveWorkingDirectory, findRunningClaudeProcesses } from './utils';
 import { ClaudeProcessManager } from './process-manager';
+import { logger } from './logger';
 
 /**
  * Manages Claude Shell sessions with persistence
@@ -27,8 +28,11 @@ export class SessionManager {
 	 * Initialize the session manager (load from disk)
 	 */
 	async initialize(): Promise<void> {
+		logger.info('[SessionManager] Initializing session manager...');
 		await this.loadFromDisk();
+		logger.info('[SessionManager] Loaded sessions from disk, count:', this.sessions.size);
 		await this.detectExistingSessions();
+		logger.info('[SessionManager] Session manager initialized');
 	}
 
 	/**
@@ -36,11 +40,15 @@ export class SessionManager {
 	 */
 	async createSession(name: string, workingDir: string): Promise<SessionMetadata> {
 		const id = generateSessionId();
+		logger.info('[SessionManager] Creating new session:', { id, name, workingDir });
 		const resolvedDir = resolveWorkingDirectory(workingDir);
+		logger.debug('[SessionManager] Resolved working directory:', resolvedDir);
 
 		// Create the Claude process
+		logger.debug('[SessionManager] Creating Claude process...');
 		const process = await this.processManager.createSession(id, resolvedDir);
 		const pid = process.getPid();
+		logger.info('[SessionManager] Claude process created, PID:', pid);
 
 		const session: SessionMetadata = {
 			id,
@@ -55,7 +63,9 @@ export class SessionManager {
 
 		this.sessions.set(id, session);
 		this.lastSessionId = id;
+		logger.debug('[SessionManager] Saving session to disk...');
 		await this.saveToDisk();
+		logger.info('[SessionManager] Session created successfully, total sessions:', this.sessions.size);
 
 		return session;
 	}
@@ -136,17 +146,22 @@ export class SessionManager {
 	 * Restart a stopped or crashed session
 	 */
 	async restartSession(sessionId: string): Promise<void> {
+		logger.info('[SessionManager] Restarting session:', sessionId);
 		const session = this.sessions.get(sessionId);
 		if (!session) {
+			logger.error('[SessionManager] Session not found:', sessionId);
 			throw new Error(`Session ${sessionId} not found`);
 		}
+		logger.debug('[SessionManager] Session found:', { name: session.name, status: session.status });
 
 		// Terminate existing process if any
 		if (this.processManager.hasSession(sessionId)) {
+			logger.debug('[SessionManager] Terminating existing process...');
 			await this.processManager.terminateSession(sessionId);
 		}
 
 		// Start new process
+		logger.debug('[SessionManager] Starting new process...');
 		const process = await this.processManager.createSession(
 			sessionId,
 			session.workingDirectory
@@ -155,6 +170,7 @@ export class SessionManager {
 		session.pid = process.getPid();
 		session.status = 'active';
 		session.lastUsedAt = Date.now();
+		logger.info('[SessionManager] Session restarted successfully, PID:', session.pid);
 
 		await this.saveToDisk();
 	}
@@ -163,21 +179,68 @@ export class SessionManager {
 	 * Detect existing sessions on startup
 	 */
 	async detectExistingSessions(): Promise<SessionMetadata[]> {
+		logger.info('[SessionManager] Detecting existing sessions...');
 		const detected: SessionMetadata[] = [];
 
+		// First, check our managed sessions
 		for (const [id, session] of this.sessions.entries()) {
+			logger.debug('[SessionManager] Checking session:', { id, name: session.name, pid: session.pid, status: session.status });
 			if (session.pid && checkPidExists(session.pid)) {
 				// Process exists but we don't manage it anymore after restart
 				// Mark as stopped so user can restart
+				logger.info('[SessionManager] Process still exists but not managed, marking as stopped:', { id, pid: session.pid });
 				session.status = 'stopped';
 			} else if (session.status === 'active') {
 				// Process doesn't exist but was marked as active
+				logger.warn('[SessionManager] Process marked active but not running, marking as crashed:', { id, pid: session.pid });
 				session.status = 'crashed';
 			}
 
 			detected.push(session);
 		}
 
+		// Now scan for unmanaged Claude processes on the system
+		logger.info('[SessionManager] Scanning for external Claude processes...');
+		try {
+			const runningProcesses = await findRunningClaudeProcesses();
+			logger.info('[SessionManager] Found running Claude processes:', runningProcesses.length);
+
+			// Get all PIDs we already know about
+			const managedPids = new Set<number>();
+			for (const session of this.sessions.values()) {
+				if (session.pid) {
+					managedPids.add(session.pid);
+				}
+			}
+
+			// Find unmanaged processes
+			for (const proc of runningProcesses) {
+				if (!managedPids.has(proc.pid)) {
+					logger.info('[SessionManager] Found unmanaged Claude process:', { pid: proc.pid, command: proc.command, cwd: proc.cwd });
+
+					// Create a session entry for this external process
+					const id = generateSessionId();
+					const session: SessionMetadata = {
+						id,
+						name: `External Claude (PID: ${proc.pid})`,
+						workingDirectory: proc.cwd || '~',
+						createdAt: Date.now(),
+						lastUsedAt: Date.now(),
+						status: 'stopped', // Mark as stopped since we can't control it
+						pid: proc.pid,
+						commandHistory: [],
+					};
+
+					this.sessions.set(id, session);
+					detected.push(session);
+					logger.info('[SessionManager] Added external process as session:', id);
+				}
+			}
+		} catch (error) {
+			logger.error('[SessionManager] Error scanning for external processes:', error);
+		}
+
+		logger.info('[SessionManager] Detection complete, total sessions:', detected.length);
 		await this.saveToDisk();
 		return detected;
 	}
@@ -186,22 +249,27 @@ export class SessionManager {
 	 * Load sessions from disk
 	 */
 	private async loadFromDisk(): Promise<void> {
+		logger.debug('[SessionManager] Loading sessions from:', this.dataFilePath);
 		if (!existsSync(this.dataFilePath)) {
+			logger.info('[SessionManager] No sessions file found, starting fresh');
 			return;
 		}
 
 		try {
 			const data = await readFile(this.dataFilePath, 'utf-8');
+			logger.debug('[SessionManager] Read session data, length:', data.length);
 			const parsed: SessionsData = JSON.parse(data);
 
 			this.sessions.clear();
 			for (const session of parsed.sessions) {
 				this.sessions.set(session.id, session);
+				logger.debug('[SessionManager] Loaded session:', { id: session.id, name: session.name, status: session.status });
 			}
 
 			this.lastSessionId = parsed.lastSessionId;
+			logger.info('[SessionManager] Loaded sessions from disk, count:', this.sessions.size);
 		} catch (error) {
-			console.error('Failed to load sessions from disk:', error);
+			logger.error('[SessionManager] Failed to load sessions from disk:', error);
 			// If corrupted, start fresh
 			this.sessions.clear();
 		}
@@ -212,24 +280,28 @@ export class SessionManager {
 	 */
 	private async saveToDisk(): Promise<void> {
 		try {
+			logger.debug('[SessionManager] Saving sessions to disk, count:', this.sessions.size);
 			const data: SessionsData = {
 				sessions: Array.from(this.sessions.values()),
 				lastSessionId: this.lastSessionId,
 			};
 
 			const json = JSON.stringify(data, null, 2);
+			logger.debug('[SessionManager] Serialized JSON length:', json.length);
 
 			// Ensure directory exists
 			const dir = this.dataFilePath.substring(0, this.dataFilePath.lastIndexOf('/'));
 			if (!existsSync(dir)) {
+				logger.debug('[SessionManager] Creating directory:', dir);
 				await mkdir(dir, { recursive: true });
 			}
 
 			// Atomic write using temp file + rename would be better
 			// but for simplicity, direct write for now
 			await writeFile(this.dataFilePath, json, 'utf-8');
+			logger.debug('[SessionManager] Sessions saved to disk successfully');
 		} catch (error) {
-			console.error('Failed to save sessions to disk:', error);
+			logger.error('[SessionManager] Failed to save sessions to disk:', error);
 			throw error;
 		}
 	}

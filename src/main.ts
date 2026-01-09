@@ -10,6 +10,7 @@ import { SessionSelectorModal } from './session-selector-modal';
 import { CommandInputModal } from './command-input-modal';
 import { ResponseModal } from './response-modal';
 import { ClaudeSettingsTab } from './settings-tab';
+import { logger } from './logger';
 
 export default class ClaudeFromObsidianPlugin extends Plugin {
 	settings!: ClaudeFromObsidianSettings;
@@ -17,31 +18,63 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 	sessionManager!: SessionManager;
 
 	async onload() {
-		console.log('Loading Claude from Obsidian plugin');
+		logger.info('========================================');
+		logger.info('Loading Claude from Obsidian plugin');
+		logger.info('========================================');
 
-		// Load settings
-		await this.loadSettings();
+		try {
+			// Load settings
+			logger.debug('Loading plugin settings...');
+			await this.loadSettings();
+			logger.info('Settings loaded:', {
+				timeout: this.settings.commandTimeout,
+				historyLimit: this.settings.commandHistoryLimit,
+				autoReconnect: this.settings.autoReconnectSessions,
+			});
 
-		// Initialize process manager
-		this.processManager = new ClaudeProcessManager(this.settings.commandTimeout);
+			// Initialize process manager
+			logger.debug('Initializing process manager...');
+			this.processManager = new ClaudeProcessManager(this.settings.commandTimeout);
+			logger.info('Process manager initialized');
 
-		// Initialize session manager
-		const dataDir = this.app.vault.configDir + '/plugins/claude-from-obsidian';
-		this.sessionManager = new SessionManager(dataDir, this.processManager);
-		await this.sessionManager.initialize();
+			// Initialize session manager
+			const dataDir = this.app.vault.configDir + '/plugins/claude-from-obsidian';
+			logger.debug('Initializing session manager with data dir:', dataDir);
+			this.sessionManager = new SessionManager(dataDir, this.processManager);
+			await this.sessionManager.initialize();
+			logger.info('Session manager initialized');
 
-		// Register commands
-		this.registerCommands();
+			// Register commands
+			logger.debug('Registering commands...');
+			this.registerCommands();
+			logger.info('Commands registered');
 
-		// Add settings tab
-		this.addSettingTab(new ClaudeSettingsTab(this.app, this));
+			// Add settings tab
+			logger.debug('Adding settings tab...');
+			this.addSettingTab(new ClaudeSettingsTab(this.app, this));
+			logger.info('Settings tab added');
+
+			logger.info('Plugin loaded successfully');
+		} catch (error) {
+			logger.error('Failed to load plugin:', error);
+			new Notice(`Failed to load Claude plugin: ${(error as Error).message}`);
+		}
 	}
 
 	async onunload() {
-		console.log('Unloading Claude from Obsidian plugin');
+		logger.info('========================================');
+		logger.info('Unloading Claude from Obsidian plugin');
+		logger.info('========================================');
 
-		// Terminate all Claude processes
-		await this.processManager.terminateAll();
+		try {
+			// Terminate all Claude processes
+			logger.debug('Terminating all Claude processes...');
+			await this.processManager.terminateAll();
+			logger.info('All Claude processes terminated');
+			logger.info('Plugin unloaded successfully');
+		} catch (error) {
+			logger.error('Error during plugin unload:', error);
+		}
 	}
 
 	async loadSettings() {
@@ -80,33 +113,47 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 	 * Handle "Ask Claude" command
 	 */
 	private async handleAskClaude(editor: Editor): Promise<void> {
+		logger.info('========================================');
+		logger.info('User triggered "Ask Claude" command');
 		const selectedText = editor.getSelection();
+		logger.debug('Selected text length:', selectedText.length);
+		if (selectedText) {
+			logger.debug('Selected text preview:', selectedText.substring(0, 100));
+		}
 
 		try {
 			// Step 1: Session selection
+			logger.debug('Showing session selector...');
 			const sessionId = await this.showSessionSelector();
 			if (!sessionId) {
+				logger.info('User cancelled session selection');
 				return; // User cancelled
 			}
+			logger.info('Session selected:', sessionId);
 
 			// Handle new session creation
 			if (sessionId.startsWith('new:')) {
 				const parts = sessionId.substring(4).split(':');
 				const name = parts[0];
 				const workingDir = parts.slice(1).join(':');
+				logger.info('Creating new session:', { name, workingDir });
 
 				try {
 					const session = await this.sessionManager.createSession(name, workingDir);
+					logger.info('New session created successfully:', session.id);
 					await this.executeCommandWorkflow(session.id, selectedText, editor);
 				} catch (error) {
+					logger.error('Failed to create session:', error);
 					new Notice(`Failed to create session: ${(error as Error).message}`);
 					return;
 				}
 			} else {
 				// Use existing session
+				logger.info('Using existing session:', sessionId);
 				await this.executeCommandWorkflow(sessionId, selectedText, editor);
 			}
 		} catch (error) {
+			logger.error('Error in handleAskClaude:', error);
 			new Notice(`Error: ${(error as Error).message}`);
 		}
 	}
@@ -119,19 +166,26 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		selectedText: string,
 		editor: Editor
 	): Promise<void> {
+		logger.debug('Starting command workflow for session:', sessionId);
 		const session = await this.sessionManager.getSession(sessionId);
 		if (!session) {
+			logger.error('Session not found:', sessionId);
 			new Notice('Session not found');
 			return;
 		}
+		logger.info('Session found:', { name: session.name, status: session.status });
 
 		// Step 2: Command input
+		logger.debug('Showing command input modal...');
 		const command = await this.showCommandInput(session.name, selectedText);
 		if (!command) {
+			logger.info('User cancelled command input');
 			return; // User cancelled
 		}
+		logger.info('Command entered:', command.substring(0, 100));
 
 		// Step 3: Execute and show response
+		logger.debug('Opening response modal...');
 		const responseModal = new ResponseModal(this.app, (action, text) => {
 			this.handleResponseAction(action, text, editor);
 		});
@@ -139,16 +193,26 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		responseModal.setLoading(true);
 
 		try {
+			logger.info('Executing command on Claude process...');
+			const startTime = Date.now();
 			const response = await this.executeCommand(sessionId, command, selectedText);
+			const duration = Date.now() - startTime;
+			logger.info(`Command executed successfully in ${duration}ms`);
+			logger.debug('Response length:', response.length);
+			logger.debug('Response preview:', response.substring(0, 200));
+
 			responseModal.setResponse(response);
 
 			// Add to history
+			logger.debug('Adding command to history...');
 			await this.sessionManager.addCommandToHistory(
 				sessionId,
 				command,
 				this.settings.commandHistoryLimit
 			);
+			logger.debug('Command added to history');
 		} catch (error) {
+			logger.error('Command execution failed:', error);
 			responseModal.setError((error as Error).message);
 		}
 	}
@@ -185,23 +249,30 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		command: string,
 		context?: string
 	): Promise<string> {
+		logger.debug('Getting Claude process for session:', sessionId);
 		// Get the process
 		const process = this.processManager.getSession(sessionId);
 		if (!process || !process.isRunning()) {
+			logger.warn('Process not running, attempting to restart session:', sessionId);
 			// Try to restart the session
 			try {
 				await this.sessionManager.restartSession(sessionId);
+				logger.info('Session restarted successfully');
 				const newProcess = this.processManager.getSession(sessionId);
 				if (!newProcess) {
+					logger.error('Process still not available after restart');
 					throw new Error('Failed to restart session');
 				}
+				logger.debug('Sending command to restarted process...');
 				return await newProcess.sendCommand(command, context);
 			} catch (error) {
+				logger.error('Failed to restart session:', error);
 				throw new Error(`Session not running: ${(error as Error).message}`);
 			}
 		}
 
 		// Send command
+		logger.debug('Sending command to active process...');
 		return await process.sendCommand(command, context);
 	}
 
