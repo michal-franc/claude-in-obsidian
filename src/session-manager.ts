@@ -2,11 +2,10 @@
  * Session management and persistence
  */
 
-import { readFile, writeFile, mkdir, readdir } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
-import { SessionMetadata, SessionsData, BridgeSessionMetadata } from './types';
+import { SessionMetadata, SessionsData } from './types';
 import { generateSessionId, checkPidExists, resolveWorkingDirectory, findRunningClaudeProcesses } from './utils';
 import { ClaudeProcessManager } from './process-manager';
 import { logger } from './logger';
@@ -153,13 +152,7 @@ export class SessionManager {
 			logger.error('[SessionManager] Session not found:', sessionId);
 			throw new Error(`Session ${sessionId} not found`);
 		}
-		logger.debug('[SessionManager] Session found:', { name: session.name, status: session.status, type: session.type });
-
-		// Bridge sessions can't be restarted (user must restart them)
-		if (session.type === 'bridge') {
-			logger.warn('[SessionManager] Cannot restart bridge session - user must restart it manually');
-			throw new Error('Bridge sessions must be restarted manually by the user');
-		}
+		logger.debug('[SessionManager] Session found:', { name: session.name, status: session.status });
 
 		// Terminate existing process if any
 		if (this.processManager.hasSession(sessionId)) {
@@ -167,8 +160,8 @@ export class SessionManager {
 			await this.processManager.terminateSession(sessionId);
 		}
 
-		// Start new process (managed session)
-		logger.debug('[SessionManager] Starting new managed process...');
+		// Start new process
+		logger.debug('[SessionManager] Starting new process...');
 		const process = await this.processManager.createSession(
 			sessionId,
 			session.workingDirectory
@@ -176,7 +169,6 @@ export class SessionManager {
 
 		session.pid = process.getPid();
 		session.status = 'active';
-		session.type = 'managed';
 		session.lastUsedAt = Date.now();
 		logger.info('[SessionManager] Session restarted successfully, PID:', session.pid);
 
@@ -205,24 +197,6 @@ export class SessionManager {
 			}
 
 			detected.push(session);
-		}
-
-		// Scan for bridge sessions (user-started via claude-bridge.sh)
-		logger.info('[SessionManager] Scanning for bridge sessions...');
-		try {
-			const bridgeSessions = await this.scanBridgeSessions();
-			logger.info('[SessionManager] Found bridge sessions:', bridgeSessions.length);
-
-			for (const bridgeSession of bridgeSessions) {
-				// Check if we already have this session
-				if (!this.sessions.has(bridgeSession.id)) {
-					logger.info('[SessionManager] Adding new bridge session:', bridgeSession.id);
-					this.sessions.set(bridgeSession.id, bridgeSession);
-					detected.push(bridgeSession);
-				}
-			}
-		} catch (error) {
-			logger.error('[SessionManager] Error scanning for bridge sessions:', error);
 		}
 
 		// Now scan for unmanaged Claude processes on the system
@@ -269,90 +243,6 @@ export class SessionManager {
 		logger.info('[SessionManager] Detection complete, total sessions:', detected.length);
 		await this.saveToDisk();
 		return detected;
-	}
-
-	/**
-	 * Scan for bridge sessions from ~/.claude-sessions/
-	 */
-	private async scanBridgeSessions(): Promise<SessionMetadata[]> {
-		const bridgeSessionsDir = join(homedir(), '.claude-sessions');
-		logger.debug('[SessionManager] Bridge sessions directory:', bridgeSessionsDir);
-
-		if (!existsSync(bridgeSessionsDir)) {
-			logger.debug('[SessionManager] Bridge sessions directory does not exist');
-			return [];
-		}
-
-		const bridgeSessions: SessionMetadata[] = [];
-
-		try {
-			const files = await readdir(bridgeSessionsDir);
-			logger.debug('[SessionManager] Found files in bridge sessions dir:', files.length);
-
-			for (const file of files) {
-				if (!file.endsWith('.json')) {
-					continue;
-				}
-
-				const filePath = join(bridgeSessionsDir, file);
-				try {
-					const content = await readFile(filePath, 'utf-8');
-					const metadata = JSON.parse(content);
-
-					// Validate metadata structure
-					if (!metadata.sessionId || !metadata.inputPipe || !metadata.outputPipe) {
-						logger.warn('[SessionManager] Invalid bridge metadata:', filePath);
-						continue;
-					}
-
-					// Check if bridge is still running (PID exists and pipes exist)
-					const isRunning =
-						metadata.pid &&
-						checkPidExists(metadata.pid) &&
-						existsSync(metadata.inputPipe) &&
-						existsSync(metadata.outputPipe);
-
-					if (!isRunning) {
-						logger.debug('[SessionManager] Bridge session not running:', metadata.sessionId);
-						continue;
-					}
-
-					// Create session metadata
-					const bridgeMetadata: BridgeSessionMetadata = {
-						inputPipe: metadata.inputPipe,
-						outputPipe: metadata.outputPipe,
-						statusPipe: metadata.statusPipe,
-						version: metadata.version || '1.0.0',
-					};
-
-					const session: SessionMetadata = {
-						id: metadata.sessionId,
-						name: `Bridge: ${metadata.workingDir || 'Unknown'}`,
-						workingDirectory: metadata.workingDir || '~',
-						createdAt: metadata.startedAt ? metadata.startedAt * 1000 : Date.now(),
-						lastUsedAt: Date.now(),
-						status: 'active',
-						type: 'bridge',
-						pid: metadata.pid,
-						commandHistory: [],
-						bridgeMetadata,
-					};
-
-					bridgeSessions.push(session);
-					logger.info('[SessionManager] Found active bridge session:', {
-						id: session.id,
-						workingDir: session.workingDirectory,
-						pid: metadata.pid,
-					});
-				} catch (error) {
-					logger.warn('[SessionManager] Error reading bridge metadata file:', filePath, error);
-				}
-			}
-		} catch (error) {
-			logger.error('[SessionManager] Error scanning bridge sessions directory:', error);
-		}
-
-		return bridgeSessions;
 	}
 
 	/**

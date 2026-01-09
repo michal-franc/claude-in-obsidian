@@ -8,10 +8,7 @@ To make it easier to send commands from obsidian to shell and responses from she
 This project will be using beads for issue tracking and progress tracking - check ISSUETRACKING.md for details on how to use it.
 
 # Git
-On each feature development remember to create a branch.
-Commit changes to the branch and then let the uset to decide to merge it in to the trunk.
-
-We want to contain the changes in the brances to protect trunk.
+On each phase remember to commit the changes with comment etc
 
 # Development Rules
 

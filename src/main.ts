@@ -250,53 +250,24 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		context?: string
 	): Promise<string> {
 		logger.debug('Getting Claude process for session:', sessionId);
-
-		// Get session metadata to check type
-		const sessionMeta = await this.sessionManager.getSession(sessionId);
-		if (!sessionMeta) {
-			logger.error('Session not found:', sessionId);
-			throw new Error('Session not found');
-		}
-
 		// Get the process
-		let process = this.processManager.getSession(sessionId);
+		const process = this.processManager.getSession(sessionId);
 		if (!process || !process.isRunning()) {
-			logger.warn('Process not running, attempting to connect/restart session:', sessionId);
-
-			// Handle bridge vs managed sessions differently
-			if (sessionMeta.type === 'bridge') {
-				// Bridge session: try to connect to existing bridge
-				logger.info('Connecting to bridge session...');
-				try {
-					if (!sessionMeta.bridgeMetadata) {
-						throw new Error('Bridge metadata not available');
-					}
-
-					// Create bridge process connection
-					process = await this.processManager.createBridgeSession(
-						sessionId,
-						sessionMeta.workingDirectory,
-						sessionMeta.bridgeMetadata
-					);
-					logger.info('Connected to bridge session successfully');
-				} catch (error) {
-					logger.error('Failed to connect to bridge session:', error);
-					throw new Error(`Bridge session not running: ${(error as Error).message}`);
+			logger.warn('Process not running, attempting to restart session:', sessionId);
+			// Try to restart the session
+			try {
+				await this.sessionManager.restartSession(sessionId);
+				logger.info('Session restarted successfully');
+				const newProcess = this.processManager.getSession(sessionId);
+				if (!newProcess) {
+					logger.error('Process still not available after restart');
+					throw new Error('Failed to restart session');
 				}
-			} else {
-				// Managed session: restart it
-				try {
-					await this.sessionManager.restartSession(sessionId);
-					logger.info('Session restarted successfully');
-					process = this.processManager.getSession(sessionId);
-					if (!process) {
-						logger.error('Process still not available after restart');
-						throw new Error('Failed to restart session');
-					}
-				} catch (error) {
-					logger.error('Failed to restart session:', error);
-					throw new Error(`Session not running: ${(error as Error).message}`);
-				}
+				logger.debug('Sending command to restarted process...');
+				return await newProcess.sendCommand(command, context);
+			} catch (error) {
+				logger.error('Failed to restart session:', error);
+				throw new Error(`Session not running: ${(error as Error).message}`);
 			}
 		}
 
