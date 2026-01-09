@@ -35,15 +35,36 @@ This rule applies to:
 
 Exception: You may skip planning for trivial tasks like typo fixes or single-line changes.
 
-## Other Development Rules
+## CRITICAL: Always Write and Run Unit Tests
 
-Always add unit tests to the developed code and ensure you are running them to verify if they are passing.
+**EVERY CODE CHANGE MUST HAVE TESTS**
+
+Before committing any code changes, you MUST:
+1. **Write unit tests** for all new functions/methods/classes
+2. **Run the tests** to verify they pass: `npm test`
+3. **Add tests to your commit** - code + tests together
+4. **Fix failing tests** before moving forward
+
+This applies to:
+- New features
+- Bug fixes
+- Refactoring
+- Any code that can be tested
+
+Exception: Documentation-only changes don't need tests.
+
+## Other Development Rules
 
 Always add logging to make it more easy for operator to test and run the plugin.
 
 Read ISSUETRACCKING.md before implementineg anything to familiarise youreslv with the BEADS framework to manage tasks.
 
 During planning prefer splitting work into features. So given asks for lets say adding logging and also new feature. Split this work into two features.
+
+After each phase:
+1. Run `npm test` to verify all tests pass
+2. Run `npm run build` to verify compilation
+3. Only then commit your changes
 
 # Features:
 
