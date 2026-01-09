@@ -18,10 +18,28 @@ export interface SessionMetadata {
 	lastUsedAt: number;
 	/** Current session status */
 	status: 'active' | 'stopped' | 'crashed';
+	/** Session type: managed (spawned by plugin) or bridge (user-started) */
+	type?: 'managed' | 'bridge';
 	/** Process ID (for detection and reconnection) */
 	pid?: number;
 	/** Last N commands executed in this session */
 	commandHistory: string[];
+	/** Bridge-specific metadata (only for bridge sessions) */
+	bridgeMetadata?: BridgeSessionMetadata;
+}
+
+/**
+ * Metadata for bridge sessions (user-started Claude shells)
+ */
+export interface BridgeSessionMetadata {
+	/** Path to input pipe (plugin writes here) */
+	inputPipe: string;
+	/** Path to output pipe (plugin reads from here) */
+	outputPipe: string;
+	/** Path to status pipe (for health checks) */
+	statusPipe: string;
+	/** Bridge version */
+	version: string;
 }
 
 /**
