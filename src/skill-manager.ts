@@ -10,6 +10,7 @@ import { logger } from './logger';
 const SKILLS_FOLDER = '.claude/skills';
 const SKILL_FILE = 'SKILL.md';
 const MAX_SKILLS = 3;
+const SKILL_NAME_FILTER = 'claude-in-obsidian';
 
 /**
  * Parses YAML frontmatter from a SKILL.md file
@@ -74,9 +75,15 @@ export class SkillManager {
 			return;
 		}
 
-		// Iterate through skill folders
+		// Iterate through skill folders (only those with 'claude-in-obsidian' in the name)
 		for (const child of skillsFolder.children) {
 			if (child instanceof TFolder) {
+				// Filter: only load skills with 'claude-in-obsidian' in folder name
+				if (!child.name.toLowerCase().includes(SKILL_NAME_FILTER)) {
+					logger.debug(`[SkillManager] Skipping skill folder (no '${SKILL_NAME_FILTER}' in name): ${child.name}`);
+					continue;
+				}
+
 				const skill = await this.loadSkillFromFolder(child);
 				if (skill) {
 					this.skills.push(skill);

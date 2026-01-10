@@ -18,17 +18,19 @@ Store skills in the vault's `.claude/skills/` folder following the Claude CLI co
 
 1. **Skill Storage Location**
    - Skills stored in `<vault>/.claude/skills/<skill-name>/SKILL.md`
+   - **Important**: Folder name must contain `claude-in-obsidian` to be loaded
+   - This prevents mixing with other Claude CLI skills in the same folder
    - Follows Claude CLI convention for compatibility
    - Future: add global skills from `~/.claude/skills/` as optional feature
 
 2. **Skill Folder Structure**
    ```
    <vault>/.claude/skills/
-   ├── improve-writing/
+   ├── claude-in-obsidian-improve/
    │   └── SKILL.md
-   ├── fix-grammar/
+   ├── claude-in-obsidian-fix-grammar/
    │   └── SKILL.md
-   └── summarize/
+   └── claude-in-obsidian-summarize/
        └── SKILL.md
    ```
 
@@ -69,11 +71,11 @@ Store skills in the vault's `.claude/skills/` folder following the Claude CLI co
 ### Example Skills
 ```
 <vault>/.claude/skills/
-├── improve/
+├── claude-in-obsidian-improve/
 │   └── SKILL.md
-├── fix-grammar/
+├── claude-in-obsidian-fix-grammar/
 │   └── SKILL.md
-└── summarize/
+└── claude-in-obsidian-summarize/
     └── SKILL.md
 ```
 
