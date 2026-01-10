@@ -74,16 +74,16 @@ export class InlinePrompt {
 		const skillsRow = this.containerEl.createDiv({ cls: 'claude-inline-skills' });
 		skillsRow.style.display = 'none'; // Hidden until skills are implemented
 
-		// Position and show
+		// Position and show (append to the correct document for multi-window support)
 		this.positionNearSelection();
-		document.body.appendChild(this.containerEl);
+		this.getOwnerDocument().body.appendChild(this.containerEl);
 
 		// Focus input
 		this.inputEl.focus();
 
-		// Add event listeners
+		// Add event listeners (use correct document for multi-window support)
 		this.inputEl.addEventListener('keydown', this.boundHandleKeydown);
-		document.addEventListener('mousedown', this.boundHandleClickOutside);
+		this.getOwnerDocument().addEventListener('mousedown', this.boundHandleClickOutside);
 
 		logger.info('[InlinePrompt] Inline prompt shown');
 	}
@@ -95,7 +95,8 @@ export class InlinePrompt {
 		if (this.inputEl) {
 			this.inputEl.removeEventListener('keydown', this.boundHandleKeydown);
 		}
-		document.removeEventListener('mousedown', this.boundHandleClickOutside);
+		// Remove listener from the correct document
+		this.getOwnerDocument().removeEventListener('mousedown', this.boundHandleClickOutside);
 
 		if (this.containerEl && this.containerEl.parentNode) {
 			this.containerEl.parentNode.removeChild(this.containerEl);
@@ -107,14 +108,29 @@ export class InlinePrompt {
 	}
 
 	/**
+	 * Get the document that contains this view (supports multi-window/popout)
+	 */
+	private getOwnerDocument(): Document {
+		return this.view.containerEl.ownerDocument;
+	}
+
+	/**
+	 * Get the window that contains this view (supports multi-window/popout)
+	 */
+	private getOwnerWindow(): Window {
+		return this.getOwnerDocument().defaultView || window;
+	}
+
+	/**
 	 * Position the prompt near the current selection/cursor
 	 */
 	private positionNearSelection(): void {
 		if (!this.containerEl) return;
 
+		const ownerWindow = this.getOwnerWindow();
+
 		// Get cursor position from CodeMirror
 		const cursor = this.editor.getCursor('to');
-		const coords = this.editor.posToOffset(cursor);
 
 		// Try to get screen coordinates from the editor
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,12 +153,12 @@ export class InlinePrompt {
 			this.containerEl.style.top = `${screenCoords.bottom + 8}px`;
 			this.containerEl.style.zIndex = '1000';
 
-			// Adjust if going off-screen
+			// Adjust if going off-screen (use the correct window's dimensions)
 			requestAnimationFrame(() => {
 				if (!this.containerEl) return;
 				const rect = this.containerEl.getBoundingClientRect();
-				const viewportWidth = window.innerWidth;
-				const viewportHeight = window.innerHeight;
+				const viewportWidth = ownerWindow.innerWidth;
+				const viewportHeight = ownerWindow.innerHeight;
 
 				// Adjust horizontal position if needed
 				if (rect.right > viewportWidth - 20) {
