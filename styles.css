@@ -286,7 +286,7 @@
 }
 
 /* Processing Admonition - Overlay Effect */
-.callout[data-callout="claude-processing"] {
+.admonition-claude-processing {
 	position: relative;
 	background-color: var(--background-secondary);
 	border: 1px solid var(--interactive-accent);
@@ -295,7 +295,7 @@
 	animation: claude-processing-pulse 2s ease-in-out infinite;
 }
 
-.callout[data-callout="claude-processing"]::before {
+.admonition-claude-processing::before {
 	content: "Claude is processing...";
 	position: absolute;
 	top: 8px;
@@ -305,7 +305,7 @@
 	font-weight: 500;
 }
 
-.callout[data-callout="claude-processing"]::after {
+.admonition-claude-processing::after {
 	content: "";
 	position: absolute;
 	top: 0;
@@ -341,23 +341,23 @@
 }
 
 /* Response Admonition */
-.callout[data-callout="claude"] {
+.admonition-claude {
 	background-color: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-left: 4px solid var(--interactive-accent);
 }
 
-.callout[data-callout="claude"] .callout-title {
+.admonition-claude .admonition-title {
 	color: var(--interactive-accent);
 }
 
 /* Error Admonition */
-.callout[data-callout="claude-error"] {
+.admonition-claude-error {
 	background-color: var(--background-secondary);
 	border: 1px solid var(--text-error);
 	border-left: 4px solid var(--text-error);
 }
 
-.callout[data-callout="claude-error"] .callout-title {
+.admonition-claude-error .admonition-title {
 	color: var(--text-error);
 }
