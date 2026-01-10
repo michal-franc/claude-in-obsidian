@@ -10,12 +10,21 @@ import { logger } from './logger';
 const SKILLS_FOLDER = '.claude/skills';
 const SKILL_FILE = 'SKILL.md';
 const MAX_SKILLS = 3;
-const SKILL_NAME_FILTER = 'claude-in-obsidian';
+export const SKILL_NAME_FILTER = 'claude-in-obsidian';
+
+/**
+ * Check if a folder name matches the skill filter
+ * Exported for testing
+ */
+export function isValidSkillFolder(folderName: string): boolean {
+	return folderName.toLowerCase().includes(SKILL_NAME_FILTER);
+}
 
 /**
  * Parses YAML frontmatter from a SKILL.md file
+ * Exported for testing
  */
-function parseFrontmatter(content: string): { frontmatter: Record<string, string>; body: string } {
+export function parseFrontmatter(content: string): { frontmatter: Record<string, string>; body: string } {
 	const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
 	const match = content.match(frontmatterRegex);
 
@@ -79,7 +88,7 @@ export class SkillManager {
 		for (const child of skillsFolder.children) {
 			if (child instanceof TFolder) {
 				// Filter: only load skills with 'claude-in-obsidian' in folder name
-				if (!child.name.toLowerCase().includes(SKILL_NAME_FILTER)) {
+				if (!isValidSkillFolder(child.name)) {
 					logger.debug(`[SkillManager] Skipping skill folder (no '${SKILL_NAME_FILTER}' in name): ${child.name}`);
 					continue;
 				}
