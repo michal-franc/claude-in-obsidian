@@ -194,18 +194,3 @@ MIT
 - Inspired by [Claudian](https://github.com/YishenTu/claudian)
 - Developed with Claude
 
-## Changelog
-
-### v0.2.0
-
-- Simplified to inline prompt workflow (no modals)
-- Single default session (removed multi-session complexity)
-- Native Obsidian callouts for processing/response/error states
-- Animated processing indicator
-- Non-blocking command execution
-
-### v0.1.0
-
-- Initial release with modal-based workflow
-- Multiple session management
-- Session persistence

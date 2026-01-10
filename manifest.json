@@ -1,7 +1,7 @@
 {
   "id": "claude-from-obsidian",
   "name": "Claude from Obsidian",
-  "version": "0.2.0",
+  "version": "0.0.1",
   "minAppVersion": "1.0.0",
   "description": "Quick inline communication with Claude CLI. Select text, type a command, get responses directly in your notes.",
   "author": "mfranc",
