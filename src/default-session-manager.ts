@@ -76,9 +76,13 @@ export class DefaultSessionManager {
 
 	/**
 	 * Execute a command on the default session
+	 * @param command - The user's command/request
+	 * @param selectedText - The text the user selected (if any)
+	 * @param filePath - Path to the file being edited (Feature 007)
 	 */
-	async executeCommand(command: string, context?: string): Promise<string> {
+	async executeCommand(command: string, selectedText?: string, filePath?: string): Promise<string> {
 		logger.info('[DefaultSessionManager] Executing command...');
+		logger.debug('[DefaultSessionManager] File path:', filePath || 'none');
 
 		// Ensure session exists
 		await this.ensureSession();
@@ -88,7 +92,7 @@ export class DefaultSessionManager {
 			throw new Error('Failed to get session process');
 		}
 
-		return await process.sendCommand(command, context);
+		return await process.sendCommand(command, selectedText, filePath);
 	}
 
 	/**

@@ -3,7 +3,7 @@
  * Simplified version with single default session and inline prompt
  */
 
-import { Editor, MarkdownView, MarkdownFileInfo, Notice, Plugin, TFile } from 'obsidian';
+import { Editor, MarkdownView, MarkdownFileInfo, Notice, Plugin } from 'obsidian';
 import { ClaudeFromObsidianSettings, DEFAULT_SETTINGS, ActiveRequest } from './types';
 import { ClaudeProcessManager } from './process-manager';
 import { DefaultSessionManager } from './default-session-manager';
@@ -250,10 +250,15 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		logger.info('Processing request:', request.requestId);
 
 		try {
+			// Get file path for context awareness (Feature 007)
+			const activeFile = this.app.workspace.getActiveFile();
+			const filePath = activeFile?.path;
+
 			// Execute the command via session manager
 			const response = await this.sessionManager.executeCommand(
 				request.command,
-				request.originalText
+				request.originalText,
+				filePath
 			);
 
 			// Check if tags are still intact

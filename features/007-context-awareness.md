@@ -1,7 +1,7 @@
 # 007: Context Awareness - File and Vault Context
 
 ## Status
-Future
+Completed
 
 ## Context
 Currently, Claude only receives the selected text and the user's command. It has no knowledge of:
@@ -15,62 +15,44 @@ Users want to:
 - Potentially reference other files in the vault
 
 ## Decision
-TBD - Needs design discussion
 
-### Possible Context Levels
+### Approach: Send File Path Only
+Send just the file path with every request. Claude CLI runs locally and can read files if needed. This keeps token usage low while still providing context.
 
-1. **Current File Context**
-   - File name and path
-   - Full file content (or surrounding context)
-   - File metadata (frontmatter, tags)
-
-2. **Vault Context** (future)
-   - Vault name
-   - Related files (backlinks, outlinks)
-   - Folder structure
-
-### Possible Implementation Approaches
-
-**Option A: Always Include File Context**
-- Always send file name + full content with every request
-- Pros: Simple, always available
-- Cons: Token usage, may be unnecessary for simple edits
-
-**Option B: On-Demand Context**
-- User explicitly requests context (e.g., checkbox in prompt)
-- Pros: Efficient, user control
-- Cons: Extra step for user
-
-**Option C: Smart Context Detection**
-- Detect when user references "this file", "the document", etc.
-- Automatically include file context
-- Pros: Natural UX
-- Cons: Complex detection, may miss cases
-
-### Example Use Cases
-
+### Context Sent to Claude
 ```
-"Summarize this file"
-→ Claude receives: file path, full content, command
+File: {{filepath}}
 
-"Fix the TypeScript errors in this file"
-→ Claude receives: file path, full content, command
+Selected text: {{selection or "none"}}
 
-"What's the main topic of this note?"
-→ Claude receives: file path, full content, command
-
-"Add a table of contents based on the headings"
-→ Claude receives: file path, full content, command
+User request: {{command}}
 ```
 
-## Open Questions
+### Behavior
+1. Every request includes: file path, selection, command
+2. Claude knows which file the user is working on
+3. Claude CLI can read the file content if needed (runs locally)
 
-1. How much context to include by default?
-2. Token limits - what if file is very large?
-3. Should vault-level context be separate feature?
-4. How to handle binary files or unsupported formats?
+## Implementation
+
+Simple approach:
+- Pass file path string through the execution chain
+- No file content reading, no truncation logic needed
+- Claude CLI has filesystem access and can read files on demand
+
+## Example Prompt Structure
+```
+You are helping edit a file in Obsidian.
+
+File: notes/projects/my-project.md
+
+Selected text: "Task 1"
+
+User request: "expand this task with subtasks"
+```
 
 ## Future Enhancements
 - Vault-wide search context
 - Multi-file context (e.g., "compare this with X.md")
-- Template variables like `{{filename}}`, `{{filepath}}`, `{{filecontent}}`
+- Template variables like `{{filename}}`, `{{filepath}}`
+- Configurable context size limit
