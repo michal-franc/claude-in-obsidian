@@ -75,13 +75,17 @@ git branch -d feature/your-feature-name
 
 **STOP AND PRESENT A PLAN FIRST - DO NOT START CODING WITHOUT USER APPROVAL**
 
+**ALSO: Always use feature branches and PRs - see "Git & GitHub Workflow" section above!**
+
 When the user asks you to implement something, you MUST:
 1. **STOP** - Do not start writing code immediately
-2. **ANALYZE** - Understand the full scope of the request
-3. **PLAN** - Create a detailed plan with approach options if applicable
-4. **PRESENT** - Show the plan to the user and ask for approval
-5. **WAIT** - Wait for explicit user approval before proceeding
-6. **IMPLEMENT** - Only after approval, proceed with implementation
+2. **CREATE BRANCH** - `git checkout -b feature/name` (NEVER work on master)
+3. **ANALYZE** - Understand the full scope of the request
+4. **PLAN** - Create a detailed plan with approach options if applicable
+5. **PRESENT** - Show the plan to the user and ask for approval
+6. **WAIT** - Wait for explicit user approval before proceeding
+7. **IMPLEMENT** - Only after approval, proceed with implementation
+8. **CREATE PR** - Push branch and create PR for review
 
 This rule applies to:
 - Bug fixes
