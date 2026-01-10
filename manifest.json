@@ -1,9 +1,9 @@
 {
   "id": "claude-from-obsidian",
   "name": "Claude from Obsidian",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minAppVersion": "1.0.0",
-  "description": "Communicate with Claude Shell CLI directly from Obsidian. Send selected text with commands and receive responses in modals.",
+  "description": "Quick inline communication with Claude CLI. Select text, type a command, get responses directly in your notes.",
   "author": "mfranc",
   "authorUrl": "https://github.com/mfranc",
   "isDesktopOnly": true

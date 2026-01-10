@@ -1,223 +1,183 @@
 # Claude from Obsidian
 
-An Obsidian plugin that enables seamless communication with Claude Shell CLI directly from your notes.
+A lightweight Obsidian plugin for quick inline communication with Claude Shell CLI. Select text, type a command, and get responses directly in your notes.
 
 ## Features
 
-- **Send Text to Claude**: Select any text in your notes and send it to Claude with a custom command
-- **Multiple Sessions**: Manage multiple named Claude Shell sessions for different projects or contexts
-- **Session Persistence**: Sessions are saved and can be resumed across Obsidian restarts
-- **Flexible Response Handling**: Copy, insert at cursor, or replace selected text with Claude's response
-- **Keyboard Shortcut**: Quick access with `Ctrl+Shift+C` (or `Cmd+Shift+C` on Mac)
+- **Inline Prompt**: Floating input appears near your selection - no modal dialogs
+- **Non-blocking**: Continue editing while Claude processes your request
+- **Visual Feedback**: Processing state shown with styled callouts
+- **Simple**: Single session, minimal configuration, just works
+
+## Quick Start
+
+1. Install [Claude CLI](https://docs.anthropic.com/claude/docs/claude-cli) and authenticate
+2. Install this plugin
+3. Select text → Press `Ctrl+Shift+C` → Type command → Press Enter
+4. Done!
 
 ## Requirements
 
-**Important**: Claude Shell CLI must be installed and authenticated on your system.
+**Claude CLI must be installed and authenticated:**
 
-1. Install Claude Shell CLI:
-   ```bash
-   npm install -g @anthropic-ai/claude-cli
-   ```
+```bash
+# Install Claude CLI
+npm install -g @anthropic-ai/claude-cli
 
-2. Authenticate:
-   ```bash
-   claude auth login
-   ```
+# Authenticate
+claude auth login
+```
 
 ## Installation
 
-### From Obsidian Community Plugins (Coming Soon)
-
-1. Open Obsidian Settings
-2. Navigate to Community Plugins
-3. Search for "Claude from Obsidian"
-4. Click Install
-5. Enable the plugin
-
 ### Manual Installation
 
-1. Download the latest release from GitHub
-2. Extract `main.js` and `manifest.json` to your vault's plugins folder:
-   ```
-   <vault>/.obsidian/plugins/claude-from-obsidian/
-   ```
-3. Reload Obsidian
-4. Enable the plugin in Settings → Community Plugins
+1. Download `main.js`, `manifest.json`, and `styles.css` from the latest release
+2. Create folder: `<vault>/.obsidian/plugins/claude-from-obsidian/`
+3. Copy the files into that folder
+4. Reload Obsidian and enable the plugin
+
+### From Source
+
+```bash
+git clone https://github.com/mfranc/claude-from-obsidian
+cd claude-from-obsidian
+npm install
+make publish  # Builds and copies to your vault
+```
 
 ## Usage
 
 ### Basic Workflow
 
-1. **Select text** in your note (optional - you can also send commands without context)
-2. Press **`Ctrl+Shift+C`** (or `Cmd+Shift+C` on Mac)
-3. **Choose a session**:
-   - Select an existing session
-   - Or create a new one by clicking "Create New Session"
-4. **Enter your command**:
-   - E.g., "Improve this text"
-   - E.g., "Make it more concise"
-   - E.g., "Fix grammar and spelling"
-5. **View Claude's response** and choose an action:
-   - **Copy**: Copy to clipboard
-   - **Insert at Cursor**: Add at current cursor position
-   - **Replace Selection**: Replace your selected text
+1. **Select text** in your note (optional)
+2. Press **`Ctrl+Shift+C`** (Mac: `Cmd+Shift+C`)
+3. **Type your command** in the floating prompt
+4. Press **Enter** to send (or Escape to cancel)
+5. Your text is wrapped in a processing callout while Claude works
+6. Response appears as a callout below your original text
 
-### Creating Sessions
+### Visual States
 
-Sessions represent persistent Claude Shell instances with their own conversation context.
+The plugin uses native Obsidian callouts for visual feedback:
 
-1. Click "Create New Session" in the session selector
-2. Enter a descriptive name (e.g., "Blog Writing", "Code Assistant")
-3. Specify a working directory (default: `~`)
-4. The session will maintain conversation context across multiple commands
+**Processing:**
+```markdown
+> [!claude-processing]
+> Your selected text here...
+```
+Shown with animated overlay while Claude is working.
 
-### Managing Sessions
+**Response:**
+```markdown
+> [!claude]
+> Claude's response here...
+```
 
-- **View Sessions**: Open command palette → "Manage Claude sessions"
-- **Settings**: Go to Settings → Claude from Obsidian to:
-  - Set default working directory
-  - Configure command timeout
-  - Adjust command history limit
-  - Toggle auto-reconnect on startup
+**Error:**
+```markdown
+> [!claude-error]
+> Error message here...
+```
 
 ### Example Use Cases
 
-#### Blog Post Editing
-1. Write a draft paragraph
-2. Select the text
-3. Ask Claude: "Make this more engaging"
-4. Review and insert the improved version
+**Improve Writing:**
+1. Select a paragraph
+2. `Ctrl+Shift+C` → "Make this more concise"
+3. Review the response callout
 
-#### Code Documentation
-1. Select a code snippet
-2. Ask Claude: "Add JSDoc comments to this code"
-3. Replace the original with documented version
+**Fix Code:**
+1. Select code block
+2. `Ctrl+Shift+C` → "Fix the bug in this code"
+3. Copy the fixed version from the response
 
-#### Research Notes
-1. Select rough notes
-2. Ask Claude: "Organize these notes into bullet points"
-3. Insert the structured version below
+**Summarize:**
+1. Select long text
+2. `Ctrl+Shift+C` → "Summarize in 3 bullet points"
 
 ## Configuration
 
-### Plugin Settings
+Settings → Claude from Obsidian:
 
-Access via Settings → Claude from Obsidian:
-
-- **Default Working Directory**: Where new Claude Shell sessions run (default: `~`)
-- **Command Timeout**: Maximum wait time for responses in seconds (default: 30)
-- **Command History Limit**: Number of commands to keep per session (default: 10)
-- **Auto-reconnect Sessions**: Automatically restore sessions on plugin load (default: enabled)
-
-### Keyboard Shortcuts
-
-- **Ask Claude**: `Ctrl+Shift+C` (Mac: `Cmd+Shift+C`)
-  - Customize in Settings → Hotkeys → "Ask Claude with selected text"
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Working Directory | Where Claude runs commands | `~` |
+| Command Timeout | Max wait time (seconds) | 30 |
 
 ## Troubleshooting
 
 ### "Failed to spawn Claude process"
 
-**Cause**: Claude CLI not installed or not in PATH
-
-**Solution**:
-1. Verify installation: `claude --version`
-2. If not installed: `npm install -g @anthropic-ai/claude-cli`
-3. Restart Obsidian after installation
-
-### "Claude CLI not authenticated"
-
-**Cause**: Not logged in to Claude
-
-**Solution**:
+Claude CLI not installed or not in PATH:
 ```bash
-claude auth login
+claude --version  # Should show version
+npm install -g @anthropic-ai/claude-cli  # If not installed
 ```
-
-### "Session not running"
-
-**Cause**: Claude process crashed or was terminated externally
-
-**Solution**:
-- The plugin will attempt to auto-restart
-- Or manually select the session again (it will restart automatically)
 
 ### "Command timeout"
 
-**Cause**: Claude is taking longer than configured timeout
-
-**Solution**:
-- Increase timeout in Settings → Claude from Obsidian → Command Timeout
-- Check your network connection
+- Increase timeout in settings
+- Check network connection
 - Try a simpler command
 
-### Session shows as "Crashed"
+### Callout styling not working
 
-**Cause**: Claude process exited unexpectedly
-
-**Solution**:
-- Select the session again to restart it automatically
-- Check Claude Shell logs for errors
-- Verify Claude CLI is working: `claude` in terminal
+Make sure you copied `styles.css` to the plugin folder and reloaded Obsidian.
 
 ## Development
 
-### Building from Source
-
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/claude-from-obsidian
-cd claude-from-obsidian
-
 # Install dependencies
-npm install
+make install
 
-# Build the plugin
-npm run build
+# Build
+make build
 
-# Or run in development mode (watch for changes)
-npm run dev
+# Build and copy to Obsidian
+make publish
+
+# Development mode (watch)
+make dev
 ```
 
 ### Project Structure
 
 ```
 src/
-├── main.ts                     # Plugin entry point
-├── process-manager.ts          # Claude process lifecycle
-├── session-manager.ts          # Session tracking & persistence
-├── session-selector-modal.ts   # Session selection UI
-├── command-input-modal.ts      # Command input UI
-├── response-modal.ts           # Response display UI
-├── settings-tab.ts             # Settings configuration
-├── types.ts                    # TypeScript interfaces
-└── utils.ts                    # Utility functions
+├── main.ts                  # Plugin entry point
+├── inline-prompt.ts         # Floating input UI
+├── default-session-manager.ts # Session management
+├── process-manager.ts       # Claude process lifecycle
+├── tag-manager.ts           # Callout injection
+├── request-manager.ts       # Request queue
+├── status-bar-manager.ts    # Status bar UI
+├── settings-tab.ts          # Settings page
+├── types.ts                 # TypeScript types
+├── utils.ts                 # Utilities
+└── logger.ts                # Logging
 ```
 
 ### Issue Tracking
 
-This project uses [Beads](https://github.com/StevenACoffman/bd) for issue tracking.
+This project uses [Beads](https://github.com/beads-project/beads) for issue tracking:
 
 ```bash
-# See ready issues
-bd ready
-
-# Create a new issue
-bd create "Issue description" -t bug|feature|task -p 0-4
-
-# Update issue
-bd update <id> --status in_progress
-
-# Complete issue
-bd close <id> --reason "Done"
+bd ready              # See open issues
+bd create "desc" -t feature  # Create issue
+bd close <id> --reason "Done"  # Close issue
 ```
 
 ## Privacy & Security
 
-- **No data is sent** to external servers except to Claude via the official CLI
-- **Session data** (names, directories, command history) is stored locally in your vault
-- **Command responses** are not persisted (only command text for history)
-- **Working directories** should be chosen carefully to avoid exposing sensitive files
+- Commands are sent only to Claude via the official CLI
+- No data sent to external servers
+- Session data stored locally in your vault
+- Working directory should be chosen carefully
+
+## Alternatives
+
+For advanced features like sidebar chat, agentic tools, or diff preview, check out [Claudian](https://github.com/YishenTu/claudian) - this plugin was inspired by its inline editing approach.
 
 ## License
 
@@ -226,23 +186,22 @@ MIT
 ## Credits
 
 - Built with [Obsidian API](https://docs.obsidian.md/)
-- Uses [Claude Shell CLI](https://claude.ai/docs/cli)
-- Developed with assistance from Claude Sonnet 4.5
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/claude-from-obsidian/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/claude-from-obsidian/discussions)
-- **Documentation**: See [PLAN.md](PLAN.md) for implementation details
+- Uses [Claude CLI](https://docs.anthropic.com/claude/docs/claude-cli)
+- Inspired by [Claudian](https://github.com/YishenTu/claudian)
+- Developed with Claude
 
 ## Changelog
 
-### v0.1.0 (Initial Release)
+### v0.2.0
 
-- Basic Claude Shell integration
+- Simplified to inline prompt workflow (no modals)
+- Single default session (removed multi-session complexity)
+- Native Obsidian callouts for processing/response/error states
+- Animated processing indicator
+- Non-blocking command execution
+
+### v0.1.0
+
+- Initial release with modal-based workflow
 - Multiple session management
 - Session persistence
-- Command history
-- Response actions (copy/insert/replace)
-- Settings configuration
-- Keyboard shortcuts
