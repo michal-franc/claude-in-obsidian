@@ -62,6 +62,33 @@ export class ClaudeSettingsTab extends PluginSettingTab {
 			.setName('Status')
 			.setDesc(`${statusText} - Working directory: ${status.workingDirectory}`);
 
+		// Skills section
+		containerEl.createEl('h3', { text: 'Skills' });
+
+		const skills = this.plugin.skillManager.getSkills();
+
+		if (skills.length === 0) {
+			const noSkillsDiv = containerEl.createDiv({ cls: 'claude-settings-no-skills' });
+			noSkillsDiv.createEl('p', {
+				text: 'No skills found.',
+				cls: 'setting-item-description',
+			});
+			noSkillsDiv.createEl('p', {
+				text: 'Create skills in: <vault>/.claude/skills/<skill-name>/SKILL.md',
+				cls: 'setting-item-description',
+			});
+			noSkillsDiv.createEl('p', {
+				text: 'Folder name must contain "claude-in-obsidian" to be loaded.',
+				cls: 'setting-item-description',
+			});
+		} else {
+			for (const skill of skills) {
+				new Setting(containerEl)
+					.setName(skill.name)
+					.setDesc(skill.description || `Folder: ${skill.folderName}`);
+			}
+		}
+
 		// About section
 		containerEl.createEl('h3', { text: 'About' });
 
