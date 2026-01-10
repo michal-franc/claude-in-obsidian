@@ -4,6 +4,7 @@
  */
 
 import { App, MarkdownView, Editor } from 'obsidian';
+import { Skill } from './types';
 import { logger } from './logger';
 
 export type CommandCallback = (command: string) => void;
@@ -214,11 +215,12 @@ export class InlinePrompt {
 	}
 
 	/**
-	 * Add skill buttons (for future Feature 003)
-	 * This method will be called by SkillManager when implemented
+	 * Add skill buttons (Feature 003: Shared Skills)
+	 * Called after show() to populate skill buttons if skills are available
 	 */
-	addSkillButtons(skills: Array<{ name: string; template: string }>): void {
+	addSkillButtons(skills: Skill[]): void {
 		if (!this.containerEl) return;
+		if (skills.length === 0) return;
 
 		const skillsRow = this.containerEl.querySelector('.claude-inline-skills');
 		if (!skillsRow) return;
@@ -229,23 +231,24 @@ export class InlinePrompt {
 		// Clear existing buttons
 		skillsRow.empty();
 
-		// Add skill buttons (max 3)
-		const maxSkills = Math.min(skills.length, 3);
-		for (let i = 0; i < maxSkills; i++) {
-			const skill = skills[i];
+		// Add skill buttons (already limited to MAX_SKILLS by SkillManager)
+		for (const skill of skills) {
 			const btn = skillsRow.createEl('button', {
 				cls: 'claude-skill-button',
 				text: skill.name,
 			});
+			btn.setAttribute('title', skill.description || skill.name);
 			btn.addEventListener('click', (e) => {
 				e.preventDefault();
 				e.stopPropagation();
 				logger.info('[InlinePrompt] Skill button clicked:', skill.name);
 				// Substitute {{selection}} and auto-submit
-				const command = skill.template.replace('{{selection}}', this.selectedText);
+				const command = skill.template.replace(/\{\{selection\}\}/g, this.selectedText);
 				this.hide();
 				this.onSubmit(command);
 			});
 		}
+
+		logger.debug('[InlinePrompt] Added', skills.length, 'skill buttons');
 	}
 }

@@ -4,6 +4,20 @@
  */
 
 /**
+ * A skill loaded from .claude/skills/<name>/SKILL.md
+ */
+export interface Skill {
+	/** Skill name from frontmatter */
+	name: string;
+	/** Skill description from frontmatter */
+	description: string;
+	/** Template content (the prompt with {{selection}} placeholder) */
+	template: string;
+	/** Folder name where the skill was loaded from */
+	folderName: string;
+}
+
+/**
  * Options for creating a Claude process
  */
 export interface ClaudeProcessOptions {

@@ -12,6 +12,7 @@ import { StatusBarManager } from './status-bar-manager';
 import { RequestManager } from './request-manager';
 import { TagManager } from './tag-manager';
 import { InlinePrompt } from './inline-prompt';
+import { SkillManager } from './skill-manager';
 import { logger } from './logger';
 
 export default class ClaudeFromObsidianPlugin extends Plugin {
@@ -21,6 +22,7 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 	statusBarManager!: StatusBarManager;
 	requestManager!: RequestManager;
 	tagManager!: TagManager;
+	skillManager!: SkillManager;
 
 	async onload() {
 		logger.info('========================================');
@@ -75,6 +77,12 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			logger.debug('Initializing tag manager...');
 			this.tagManager = new TagManager();
 			logger.info('Tag manager initialized');
+
+			// Initialize skill manager and load skills
+			logger.debug('Initializing skill manager...');
+			this.skillManager = new SkillManager(this.app);
+			await this.skillManager.loadSkills();
+			logger.info('Skill manager initialized');
 
 			logger.info('Plugin loaded successfully');
 		} catch (error) {
@@ -167,6 +175,12 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			}
 		);
 		inlinePrompt.show();
+
+		// Add skill buttons if skills are available
+		const skills = this.skillManager.getSkills();
+		if (skills.length > 0) {
+			inlinePrompt.addSkillButtons(skills);
+		}
 	}
 
 	/**
