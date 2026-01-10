@@ -3,7 +3,7 @@
  */
 
 import { spawn, ChildProcess } from 'child_process';
-import { ClaudeProcessOptions, FileContext } from './types';
+import { ClaudeProcessOptions } from './types';
 import { stripAnsiCodes } from './utils';
 import { logger } from './logger';
 
@@ -40,9 +40,9 @@ export class ClaudeProcess {
 	 * Send a command to Claude (spawns fresh process with --print mode)
 	 * @param command - The user's command/request
 	 * @param selectedText - The text the user selected (if any)
-	 * @param fileContext - File context including path and content
+	 * @param filePath - Path to the file being edited (Feature 007)
 	 */
-	async sendCommand(command: string, selectedText?: string, fileContext?: FileContext): Promise<string> {
+	async sendCommand(command: string, selectedText?: string, filePath?: string): Promise<string> {
 		logger.info(`[Session ${this.sessionId}] Executing command:`, command.substring(0, 100));
 
 		if (!this.isActive) {
@@ -51,8 +51,8 @@ export class ClaudeProcess {
 		}
 
 		return new Promise((resolve, reject) => {
-			// Build the prompt with file context (Feature 007)
-			const input = this.buildPrompt(command, selectedText, fileContext);
+			// Build the prompt with file path (Feature 007)
+			const input = this.buildPrompt(command, selectedText, filePath);
 			logger.debug(`[Session ${this.sessionId}] Built prompt, length:`, input.length);
 
 			logger.debug(`[Session ${this.sessionId}] Spawning claude --print --continue...`);
@@ -184,35 +184,26 @@ export class ClaudeProcess {
 	}
 
 	/**
-	 * Build the prompt with file context (Feature 007)
+	 * Build the prompt with file path (Feature 007)
 	 * Format:
 	 * You are helping edit a file in Obsidian.
 	 *
 	 * File: {{filepath}}
-	 * ---
-	 * {{file content}}
-	 * ---
 	 *
 	 * Selected text: {{selection or "none"}}
 	 *
 	 * User request: {{command}}
 	 */
-	private buildPrompt(command: string, selectedText?: string, fileContext?: FileContext): string {
+	private buildPrompt(command: string, selectedText?: string, filePath?: string): string {
 		const parts: string[] = [];
 
 		// System context
 		parts.push('You are helping edit a file in Obsidian.');
 		parts.push('');
 
-		// File context if available
-		if (fileContext) {
-			parts.push(`File: ${fileContext.filePath}`);
-			if (fileContext.truncated) {
-				parts.push('[File truncated - showing first 50KB]');
-			}
-			parts.push('---');
-			parts.push(fileContext.fileContent);
-			parts.push('---');
+		// File path if available
+		if (filePath) {
+			parts.push(`File: ${filePath}`);
 			parts.push('');
 		}
 

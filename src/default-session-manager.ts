@@ -3,7 +3,6 @@
  */
 
 import { ClaudeProcessManager } from './process-manager';
-import { FileContext } from './types';
 import { resolveWorkingDirectory } from './utils';
 import { logger } from './logger';
 
@@ -79,11 +78,11 @@ export class DefaultSessionManager {
 	 * Execute a command on the default session
 	 * @param command - The user's command/request
 	 * @param selectedText - The text the user selected (if any)
-	 * @param fileContext - File context including path and content
+	 * @param filePath - Path to the file being edited (Feature 007)
 	 */
-	async executeCommand(command: string, selectedText?: string, fileContext?: FileContext): Promise<string> {
+	async executeCommand(command: string, selectedText?: string, filePath?: string): Promise<string> {
 		logger.info('[DefaultSessionManager] Executing command...');
-		logger.debug('[DefaultSessionManager] File context:', fileContext?.filePath || 'none');
+		logger.debug('[DefaultSessionManager] File path:', filePath || 'none');
 
 		// Ensure session exists
 		await this.ensureSession();
@@ -93,7 +92,7 @@ export class DefaultSessionManager {
 			throw new Error('Failed to get session process');
 		}
 
-		return await process.sendCommand(command, selectedText, fileContext);
+		return await process.sendCommand(command, selectedText, filePath);
 	}
 
 	/**

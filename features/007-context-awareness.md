@@ -16,15 +16,12 @@ Users want to:
 
 ## Decision
 
-### Approach: Always Include File Context
-Always send file context with every request. Simple and predictable - Claude always knows about the current file.
+### Approach: Send File Path Only
+Send just the file path with every request. Claude CLI runs locally and can read files if needed. This keeps token usage low while still providing context.
 
 ### Context Sent to Claude
 ```
 File: {{filepath}}
----
-{{file content}}
----
 
 Selected text: {{selection or "none"}}
 
@@ -32,41 +29,22 @@ User request: {{command}}
 ```
 
 ### Behavior
-1. Every request includes: file path, full file content, selection, command
-2. Claude can reference any part of the file
-3. User can ask "summarize this file", "fix imports", etc.
+1. Every request includes: file path, selection, command
+2. Claude knows which file the user is working on
+3. Claude CLI can read the file content if needed (runs locally)
 
-### Large File Handling
-- If file > 50KB, truncate with note: `[File truncated - showing first 50KB]`
-- Selection is always included in full
+## Implementation
 
-## Implementation Plan
-
-### Phase 1: Pass File Context
-- Modify `executeCommand` to read full file content
-- Update prompt structure to include file path and content
-- Pass context to Claude via session manager
-
-### Phase 2: Update Prompt Format
-- Structure prompt clearly with file context section
-- Ensure selection is highlighted within context
-- Add file path for reference
+Simple approach:
+- Pass file path string through the execution chain
+- No file content reading, no truncation logic needed
+- Claude CLI has filesystem access and can read files on demand
 
 ## Example Prompt Structure
 ```
 You are helping edit a file in Obsidian.
 
 File: notes/projects/my-project.md
----
-# My Project
-
-## Overview
-This is my project description.
-
-## Tasks
-- Task 1
-- Task 2
----
 
 Selected text: "Task 1"
 

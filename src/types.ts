@@ -78,18 +78,6 @@ export interface DocumentPosition {
 export type RequestStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'orphaned';
 
 /**
- * File context sent to Claude for context awareness (Feature 007)
- */
-export interface FileContext {
-	/** Path to the file within the vault */
-	filePath: string;
-	/** Full content of the file (may be truncated for large files) */
-	fileContent: string;
-	/** Whether the file content was truncated */
-	truncated: boolean;
-}
-
-/**
  * Tracks an active or queued Claude request
  */
 export interface ActiveRequest {
