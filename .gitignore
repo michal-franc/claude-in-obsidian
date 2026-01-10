@@ -7,7 +7,6 @@ main.js
 dist/
 
 # npm
-package-lock.json
 yarn.lock
 
 # IDE
