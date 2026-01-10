@@ -219,3 +219,68 @@
 	justify-content: flex-end;
 	margin-top: 16px;
 }
+
+/* Inline Prompt (Feature 004) */
+.claude-inline-prompt {
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	padding: 8px 12px;
+	min-width: 300px;
+	max-width: 500px;
+}
+
+.claude-inline-input-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.claude-inline-label {
+	color: var(--text-muted);
+	font-size: 0.9em;
+	white-space: nowrap;
+}
+
+.claude-inline-input {
+	flex: 1;
+	border: none;
+	background: transparent;
+	font-size: 1em;
+	color: var(--text-normal);
+	outline: none;
+	padding: 4px 0;
+}
+
+.claude-inline-input::placeholder {
+	color: var(--text-faint);
+}
+
+.claude-inline-hint {
+	color: var(--text-faint);
+	font-size: 0.85em;
+}
+
+.claude-inline-skills {
+	display: flex;
+	gap: 6px;
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.claude-skill-button {
+	padding: 4px 10px;
+	font-size: 0.85em;
+	border-radius: 4px;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.claude-skill-button:hover {
+	background-color: var(--background-modifier-hover);
+}

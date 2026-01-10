@@ -9,7 +9,8 @@ import { logger } from './logger';
 const CLAUDE_TAG_OPEN = '=== CLAUDE PROCESSING ===';
 const CLAUDE_TAG_CLOSE = '=== END CLAUDE ===';
 const CLAUDE_RESPONSE_START = '```ad-claude';
-const CLAUDE_RESPONSE_END = '```';
+const CLAUDE_ERROR_START = '```ad-claude-error';
+const CLAUDE_BLOCK_END = '```';
 
 /**
  * Result of tag injection
@@ -195,9 +196,9 @@ export class TagManager {
 			let replacement: string;
 
 			if (originalText.length > 0) {
-				replacement = `${originalText}\n${CLAUDE_RESPONSE_START}\n${response}\n${CLAUDE_RESPONSE_END}`;
+				replacement = `${originalText}\n${CLAUDE_RESPONSE_START}\n${response}\n${CLAUDE_BLOCK_END}`;
 			} else {
-				replacement = `${CLAUDE_RESPONSE_START}\n${response}\n${CLAUDE_RESPONSE_END}`;
+				replacement = `${CLAUDE_RESPONSE_START}\n${response}\n${CLAUDE_BLOCK_END}`;
 			}
 
 			// Replace the entire tagged region
@@ -216,7 +217,7 @@ export class TagManager {
 	}
 
 	/**
-	 * Inject error message inside the tags
+	 * Inject error message inside the tags (uses ad-claude-error admonition)
 	 */
 	injectError(
 		editor: Editor,
@@ -233,15 +234,14 @@ export class TagManager {
 		}
 
 		try {
-			// Keep original text and add error in admonition
+			// Keep original text and add error in error admonition
 			const originalText = request.originalText;
-			const errorContent = `**Error:** ${errorMessage}`;
 			let replacement: string;
 
 			if (originalText.length > 0) {
-				replacement = `${originalText}\n${CLAUDE_RESPONSE_START}\n${errorContent}\n${CLAUDE_RESPONSE_END}`;
+				replacement = `${originalText}\n${CLAUDE_ERROR_START}\n${errorMessage}\n${CLAUDE_BLOCK_END}`;
 			} else {
-				replacement = `${CLAUDE_RESPONSE_START}\n${errorContent}\n${CLAUDE_RESPONSE_END}`;
+				replacement = `${CLAUDE_ERROR_START}\n${errorMessage}\n${CLAUDE_BLOCK_END}`;
 			}
 
 			editor.replaceRange(

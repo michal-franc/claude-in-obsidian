@@ -1,6 +1,6 @@
 # Bugs
 
-No open bugs at the moment.
+1. In the modal when creating session the working directory should default to the `pwd` of process so for instance if i open obsidian vault as ~/Work/notes the working directory should be the same - so that the context is shared
 
 ## Fixed
 

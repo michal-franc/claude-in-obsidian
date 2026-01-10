@@ -1,5 +1,6 @@
 /**
  * Settings tab for Claude from Obsidian plugin
+ * Simplified for single default session (Feature 004)
  */
 
 import { App, PluginSettingTab, Setting } from 'obsidian';
@@ -22,8 +23,8 @@ export class ClaudeSettingsTab extends PluginSettingTab {
 
 		// Default working directory
 		new Setting(containerEl)
-			.setName('Default Working Directory')
-			.setDesc('Default directory for new Claude Shell sessions')
+			.setName('Working Directory')
+			.setDesc('Directory where Claude will run commands. Use ~ for home directory.')
 			.addText((text) =>
 				text
 					.setPlaceholder('~')
@@ -51,78 +52,25 @@ export class ClaudeSettingsTab extends PluginSettingTab {
 					})
 			);
 
-		// Command history limit
-		new Setting(containerEl)
-			.setName('Command History Limit')
-			.setDesc('Number of commands to keep in session history')
-			.addText((text) =>
-				text
-					.setPlaceholder('10')
-					.setValue(String(this.plugin.settings.commandHistoryLimit))
-					.onChange(async (value) => {
-						const limit = parseInt(value);
-						if (!isNaN(limit) && limit > 0) {
-							this.plugin.settings.commandHistoryLimit = limit;
-							await this.plugin.saveSettings();
-						}
-					})
-			);
+		// Session status
+		containerEl.createEl('h3', { text: 'Session Status' });
 
-		// Auto-reconnect sessions
-		new Setting(containerEl)
-			.setName('Auto-reconnect Sessions')
-			.setDesc('Automatically reconnect to sessions on plugin load')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.autoReconnectSessions)
-					.onChange(async (value) => {
-						this.plugin.settings.autoReconnectSessions = value;
-						await this.plugin.saveSettings();
-					})
-			);
-
-		// Session information
-		containerEl.createEl('h3', { text: 'Session Management' });
-
-		// Session retention setting
-		new Setting(containerEl)
-			.setName('Session Retention')
-			.setDesc('Automatically remove stopped sessions older than this (days). Set to 0 to keep forever.')
-			.addText((text) =>
-				text
-					.setPlaceholder('7')
-					.setValue(String(this.plugin.settings.sessionRetentionDays))
-					.onChange(async (value) => {
-						const days = parseInt(value);
-						if (!isNaN(days) && days >= 0) {
-							this.plugin.settings.sessionRetentionDays = days;
-							await this.plugin.saveSettings();
-						}
-					})
-			);
+		const status = this.plugin.sessionManager.getStatus();
+		const statusText = status.ready ? 'Ready' : 'Not initialized';
 
 		new Setting(containerEl)
-			.setName('Active Sessions')
-			.setDesc(`Currently running: ${this.plugin.processManager.getSessionCount()}`)
-			.addButton((btn) =>
-				btn
-					.setButtonText('View All Sessions')
-					.onClick(() => {
-						this.plugin.handleManageSessions();
-					})
-			);
+			.setName('Status')
+			.setDesc(`${statusText} - Working directory: ${status.workingDirectory}`);
 
-		new Setting(containerEl)
-			.setName('Clear Session History')
-			.setDesc('Remove command history from all sessions')
-			.addButton((btn) =>
-				btn
-					.setButtonText('Clear History')
-					.setWarning()
-					.onClick(async () => {
-						await this.plugin.sessionManager.clearAllHistory();
-						this.display(); // Refresh
-					})
-			);
+		// About section
+		containerEl.createEl('h3', { text: 'About' });
+
+		const aboutDiv = containerEl.createDiv({ cls: 'claude-settings-about' });
+		aboutDiv.createEl('p', {
+			text: 'This plugin provides a simplified inline workflow for asking Claude questions about selected text.',
+		});
+		aboutDiv.createEl('p', {
+			text: 'For advanced features like sidebar chat, agentic tools, or diff preview, consider using Claudian.',
+		});
 	}
 }

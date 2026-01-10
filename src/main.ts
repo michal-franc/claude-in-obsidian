@@ -1,23 +1,23 @@
 /**
  * Claude from Obsidian Plugin - Main Entry Point
+ * Simplified version with single default session and inline prompt
  */
 
-import { Editor, MarkdownView, Notice, Plugin, TFile } from 'obsidian';
+import { Editor, MarkdownView, MarkdownFileInfo, Notice, Plugin, TFile } from 'obsidian';
 import { ClaudeFromObsidianSettings, DEFAULT_SETTINGS, ActiveRequest } from './types';
 import { ClaudeProcessManager } from './process-manager';
-import { SessionManager } from './session-manager';
-import { SessionSelectorModal } from './session-selector-modal';
-import { CommandInputModal } from './command-input-modal';
+import { DefaultSessionManager } from './default-session-manager';
 import { ClaudeSettingsTab } from './settings-tab';
 import { StatusBarManager } from './status-bar-manager';
 import { RequestManager } from './request-manager';
 import { TagManager } from './tag-manager';
+import { InlinePrompt } from './inline-prompt';
 import { logger } from './logger';
 
 export default class ClaudeFromObsidianPlugin extends Plugin {
 	settings!: ClaudeFromObsidianSettings;
 	processManager!: ClaudeProcessManager;
-	sessionManager!: SessionManager;
+	sessionManager!: DefaultSessionManager;
 	statusBarManager!: StatusBarManager;
 	requestManager!: RequestManager;
 	tagManager!: TagManager;
@@ -33,8 +33,7 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			await this.loadSettings();
 			logger.info('Settings loaded:', {
 				timeout: this.settings.commandTimeout,
-				historyLimit: this.settings.commandHistoryLimit,
-				autoReconnect: this.settings.autoReconnectSessions,
+				workingDir: this.settings.defaultWorkingDirectory,
 			});
 
 			// Initialize process manager
@@ -42,13 +41,13 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			this.processManager = new ClaudeProcessManager(this.settings.commandTimeout);
 			logger.info('Process manager initialized');
 
-			// Initialize session manager
-			const dataDir = this.app.vault.configDir + '/plugins/claude-from-obsidian';
-			logger.debug('Initializing session manager with data dir:', dataDir);
-			this.sessionManager = new SessionManager(dataDir, this.processManager);
-			this.sessionManager.setRetentionDays(this.settings.sessionRetentionDays);
-			await this.sessionManager.initialize();
-			logger.info('Session manager initialized');
+			// Initialize default session manager (single session)
+			logger.debug('Initializing default session manager...');
+			this.sessionManager = new DefaultSessionManager(
+				this.processManager,
+				this.settings.defaultWorkingDirectory
+			);
+			logger.info('Default session manager initialized');
 
 			// Register commands
 			logger.debug('Registering commands...');
@@ -96,6 +95,12 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 				this.statusBarManager.destroy();
 			}
 
+			// Terminate session
+			if (this.sessionManager) {
+				logger.debug('Terminating session...');
+				await this.sessionManager.terminate();
+			}
+
 			// Terminate all Claude processes
 			logger.debug('Terminating all Claude processes...');
 			await this.processManager.terminateAll();
@@ -112,6 +117,10 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+		// Update session manager with new working directory
+		if (this.sessionManager) {
+			this.sessionManager.setWorkingDirectory(this.settings.defaultWorkingDirectory);
+		}
 	}
 
 	/**
@@ -121,99 +130,56 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		// Main command: Ask Claude with selected text
 		this.addCommand({
 			id: 'ask-claude',
-			name: 'Ask Claude with selected text',
-			editorCallback: (editor: Editor) => {
-				this.handleAskClaude(editor);
+			name: 'Ask Claude',
+			editorCallback: (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
+				// Get the MarkdownView from context
+				const view = ctx instanceof MarkdownView
+					? ctx
+					: this.app.workspace.getActiveViewOfType(MarkdownView);
+
+				if (view) {
+					this.handleAskClaude(editor, view);
+				} else {
+					new Notice('Cannot show prompt - no active markdown view');
+				}
 			},
 			hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'c' }],
-		});
-
-		// Command: Manage Claude sessions
-		this.addCommand({
-			id: 'manage-sessions',
-			name: 'Manage Claude sessions',
-			callback: () => {
-				this.handleManageSessions();
-			},
 		});
 	}
 
 	/**
-	 * Handle "Ask Claude" command
+	 * Handle "Ask Claude" command - shows inline prompt
 	 */
-	private async handleAskClaude(editor: Editor): Promise<void> {
+	private async handleAskClaude(editor: Editor, view: MarkdownView): Promise<void> {
 		logger.info('========================================');
 		logger.info('User triggered "Ask Claude" command');
 		const selectedText = editor.getSelection();
 		logger.debug('Selected text length:', selectedText.length);
-		if (selectedText) {
-			logger.debug('Selected text preview:', selectedText.substring(0, 100));
-		}
 
-		try {
-			// Step 1: Session selection
-			logger.debug('Showing session selector...');
-			const sessionId = await this.showSessionSelector();
-			if (!sessionId) {
-				logger.info('User cancelled session selection');
-				return; // User cancelled
+		// Show inline prompt
+		const inlinePrompt = new InlinePrompt(
+			this.app,
+			view,
+			editor,
+			selectedText,
+			(command: string) => {
+				this.executeCommand(editor, selectedText, command);
 			}
-			logger.info('Session selected:', sessionId);
-
-			// Handle new session creation
-			if (sessionId.startsWith('new:')) {
-				const parts = sessionId.substring(4).split(':');
-				const name = parts[0];
-				const workingDir = parts.slice(1).join(':');
-				logger.info('Creating new session:', { name, workingDir });
-
-				try {
-					const session = await this.sessionManager.createSession(name, workingDir);
-					logger.info('New session created successfully:', session.id);
-					await this.executeCommandWorkflow(session.id, selectedText, editor);
-				} catch (error) {
-					logger.error('Failed to create session:', error);
-					new Notice(`Failed to create session: ${(error as Error).message}`);
-					return;
-				}
-			} else {
-				// Use existing session
-				logger.info('Using existing session:', sessionId);
-				await this.executeCommandWorkflow(sessionId, selectedText, editor);
-			}
-		} catch (error) {
-			logger.error('Error in handleAskClaude:', error);
-			new Notice(`Error: ${(error as Error).message}`);
-		}
+		);
+		inlinePrompt.show();
 	}
 
 	/**
-	 * Execute the command workflow for a session (non-blocking)
+	 * Execute command with inline workflow
 	 */
-	private async executeCommandWorkflow(
-		sessionId: string,
+	private async executeCommand(
+		editor: Editor,
 		selectedText: string,
-		editor: Editor
+		command: string
 	): Promise<void> {
-		logger.debug('Starting command workflow for session:', sessionId);
-		const session = await this.sessionManager.getSession(sessionId);
-		if (!session) {
-			logger.error('Session not found:', sessionId);
-			new Notice('Session not found');
-			return;
-		}
-		logger.info('Session found:', { name: session.name, status: session.status });
+		logger.info('Executing command:', command.substring(0, 100));
 
-		// Step 2: Command input
-		logger.debug('Showing command input modal...');
-		const command = await this.showCommandInput(session.name, selectedText);
-		if (!command) {
-			logger.info('User cancelled command input');
-			return; // User cancelled
-		}
-		logger.info('Command entered:', command.substring(0, 100));
-
-		// Step 3: Inject tags into document
+		// Inject tags into document
 		logger.debug('Injecting tags into document...');
 		const tagResult = this.tagManager.injectTags(editor, selectedText);
 		if (!tagResult.success) {
@@ -227,9 +193,9 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		const activeFile = this.app.workspace.getActiveFile();
 		const filePath = activeFile?.path || 'unknown';
 
-		// Step 4: Create request and queue it
+		// Create request and queue it
 		const request = this.requestManager.createRequest(
-			sessionId,
+			this.sessionManager.getSessionId(),
 			filePath,
 			command,
 			selectedText,
@@ -238,7 +204,7 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		);
 		logger.info('Request created:', request.requestId);
 
-		// Step 5: Update status bar with queue info
+		// Update status bar
 		const queueLen = this.requestManager.getQueueLength();
 		if (queueLen > 1) {
 			this.statusBarManager.setProcessing(`Processing... (${queueLen - 1} queued)`);
@@ -246,11 +212,8 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			this.statusBarManager.setProcessing('Processing...');
 		}
 
-		// Step 6: Process the queue (non-blocking)
+		// Process the queue (non-blocking)
 		this.processNextRequest(editor);
-
-		// Control returns to user immediately
-		new Notice('Claude is processing your request...', 2000);
 	}
 
 	/**
@@ -273,9 +236,8 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		logger.info('Processing request:', request.requestId);
 
 		try {
-			// Execute the command
-			const response = await this.executeCommand(
-				request.sessionId,
+			// Execute the command via session manager
+			const response = await this.sessionManager.executeCommand(
 				request.command,
 				request.originalText
 			);
@@ -297,13 +259,6 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 
 			// Mark request as completed
 			this.requestManager.completeRequest(response);
-
-			// Add to history
-			await this.sessionManager.addCommandToHistory(
-				request.sessionId,
-				request.command,
-				this.settings.commandHistoryLimit
-			);
 
 		} catch (error) {
 			logger.error('Request failed:', error);
@@ -367,90 +322,5 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 				this.statusBarManager.setIdle();
 			}
 		}
-	}
-
-	/**
-	 * Show session selector modal
-	 */
-	private showSessionSelector(): Promise<string | null> {
-		return new Promise((resolve) => {
-			this.sessionManager.getAllSessions().then((sessions) => {
-				new SessionSelectorModal(
-					this.app,
-					sessions,
-					(sessionId) => {
-						resolve(sessionId);
-					},
-					async () => {
-						// Clear stopped sessions callback
-						const removed = await this.sessionManager.clearStoppedSessions();
-						return removed;
-					}
-				).open();
-			});
-		});
-	}
-
-	/**
-	 * Show command input modal
-	 */
-	private showCommandInput(sessionName: string, selectedText: string): Promise<string | null> {
-		return new Promise((resolve) => {
-			new CommandInputModal(this.app, sessionName, selectedText, (command) => {
-				resolve(command);
-			}).open();
-		});
-	}
-
-	/**
-	 * Execute a command on a Claude process
-	 */
-	private async executeCommand(
-		sessionId: string,
-		command: string,
-		context?: string
-	): Promise<string> {
-		logger.debug('Getting Claude process for session:', sessionId);
-		// Get the process
-		const process = this.processManager.getSession(sessionId);
-		if (!process || !process.isRunning()) {
-			logger.warn('Process not running, attempting to restart session:', sessionId);
-			// Try to restart the session
-			try {
-				await this.sessionManager.restartSession(sessionId);
-				logger.info('Session restarted successfully');
-				const newProcess = this.processManager.getSession(sessionId);
-				if (!newProcess) {
-					logger.error('Process still not available after restart');
-					throw new Error('Failed to restart session');
-				}
-				logger.debug('Sending command to restarted process...');
-				return await newProcess.sendCommand(command, context);
-			} catch (error) {
-				logger.error('Failed to restart session:', error);
-				throw new Error(`Session not running: ${(error as Error).message}`);
-			}
-		}
-
-		// Send command
-		logger.debug('Sending command to active process...');
-		return await process.sendCommand(command, context);
-	}
-
-	/**
-	 * Handle "Manage Sessions" command
-	 */
-	async handleManageSessions(): Promise<void> {
-		const sessions = await this.sessionManager.getAllSessions();
-
-		let message = `Active Sessions: ${sessions.length}\n\n`;
-
-		for (const session of sessions) {
-			message += `${session.name} (${session.status})\n`;
-			message += `  Directory: ${session.workingDirectory}\n`;
-			message += `  Commands: ${session.commandHistory.length}\n\n`;
-		}
-
-		new Notice(message, 10000);
 	}
 }

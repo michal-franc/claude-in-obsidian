@@ -1,7 +1,7 @@
 # 004: Simplified Inline Editing
 
 ## Status
-Draft
+Approved
 
 ## Context
 The current modal-based workflow requires multiple steps:
