@@ -27,5 +27,10 @@ export class App {
 	vault = {
 		getAbstractFileByPath: jest.fn(),
 		read: jest.fn(),
+		adapter: {
+			exists: jest.fn(),
+			list: jest.fn(),
+			read: jest.fn(),
+		},
 	};
 }

@@ -3,7 +3,7 @@
  * Feature 003: Shared Skills
  */
 
-import { App, TFolder, TFile } from 'obsidian';
+import { App } from 'obsidian';
 import { Skill } from './types';
 import { logger } from './logger';
 
@@ -64,40 +64,45 @@ export class SkillManager {
 
 	/**
 	 * Load skills from .claude/skills/ folder
+	 * Uses adapter API to access hidden folders that aren't indexed by vault
 	 * Call this on plugin startup
 	 */
 	async loadSkills(): Promise<void> {
 		logger.info('[SkillManager] Loading skills...');
 		this.skills = [];
 
-		const skillsFolder = this.app.vault.getAbstractFileByPath(SKILLS_FOLDER);
+		const adapter = this.app.vault.adapter;
 
-		if (!skillsFolder) {
+		// Check if skills folder exists using adapter (works with hidden folders)
+		const folderExists = await adapter.exists(SKILLS_FOLDER);
+		if (!folderExists) {
 			logger.debug('[SkillManager] Skills folder not found:', SKILLS_FOLDER);
 			this.loaded = true;
 			return;
 		}
 
-		if (!(skillsFolder instanceof TFolder)) {
-			logger.warn('[SkillManager] Skills path is not a folder:', SKILLS_FOLDER);
-			this.loaded = true;
-			return;
-		}
+		try {
+			// List contents of skills folder
+			const listing = await adapter.list(SKILLS_FOLDER);
+			logger.debug('[SkillManager] Found folders:', listing.folders);
 
-		// Iterate through skill folders (only those with 'claude-in-obsidian' in the name)
-		for (const child of skillsFolder.children) {
-			if (child instanceof TFolder) {
+			// Iterate through skill folders (only those with 'claude-in-obsidian' in the name)
+			for (const folderPath of listing.folders) {
+				const folderName = folderPath.split('/').pop() || '';
+
 				// Filter: only load skills with 'claude-in-obsidian' in folder name
-				if (!isValidSkillFolder(child.name)) {
-					logger.debug(`[SkillManager] Skipping skill folder (no '${SKILL_NAME_FILTER}' in name): ${child.name}`);
+				if (!isValidSkillFolder(folderName)) {
+					logger.debug(`[SkillManager] Skipping skill folder (no '${SKILL_NAME_FILTER}' in name): ${folderName}`);
 					continue;
 				}
 
-				const skill = await this.loadSkillFromFolder(child);
+				const skill = await this.loadSkillFromPath(folderPath, folderName);
 				if (skill) {
 					this.skills.push(skill);
 				}
 			}
+		} catch (error) {
+			logger.error('[SkillManager] Failed to list skills folder:', error);
 		}
 
 		// Sort alphabetically by name and limit to MAX_SKILLS
@@ -112,23 +117,26 @@ export class SkillManager {
 	}
 
 	/**
-	 * Load a skill from a folder containing SKILL.md
+	 * Load a skill from a folder path containing SKILL.md
+	 * Uses adapter API to read from hidden folders
 	 */
-	private async loadSkillFromFolder(folder: TFolder): Promise<Skill | null> {
-		const skillFilePath = `${folder.path}/${SKILL_FILE}`;
-		const skillFile = this.app.vault.getAbstractFileByPath(skillFilePath);
+	private async loadSkillFromPath(folderPath: string, folderName: string): Promise<Skill | null> {
+		const adapter = this.app.vault.adapter;
+		const skillFilePath = `${folderPath}/${SKILL_FILE}`;
 
-		if (!skillFile || !(skillFile instanceof TFile)) {
-			logger.debug(`[SkillManager] No SKILL.md in ${folder.name}`);
+		// Check if SKILL.md exists
+		const fileExists = await adapter.exists(skillFilePath);
+		if (!fileExists) {
+			logger.debug(`[SkillManager] No SKILL.md in ${folderName}`);
 			return null;
 		}
 
 		try {
-			const content = await this.app.vault.read(skillFile);
+			const content = await adapter.read(skillFilePath);
 			const { frontmatter, body } = parseFrontmatter(content);
 
 			if (!frontmatter.name) {
-				logger.warn(`[SkillManager] Skill missing 'name' in frontmatter: ${folder.name}`);
+				logger.warn(`[SkillManager] Skill missing 'name' in frontmatter: ${folderName}`);
 				return null;
 			}
 
@@ -136,13 +144,13 @@ export class SkillManager {
 				name: frontmatter.name,
 				description: frontmatter.description || '',
 				template: body,
-				folderName: folder.name,
+				folderName: folderName,
 			};
 
 			logger.debug(`[SkillManager] Loaded skill: ${skill.name}`);
 			return skill;
 		} catch (error) {
-			logger.error(`[SkillManager] Failed to load skill from ${folder.name}:`, error);
+			logger.error(`[SkillManager] Failed to load skill from ${folderName}:`, error);
 			return null;
 		}
 	}
