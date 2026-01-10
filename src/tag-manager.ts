@@ -6,8 +6,8 @@ import { Editor } from 'obsidian';
 import { ActiveRequest, DocumentPosition } from './types';
 import { logger } from './logger';
 
-const CLAUDE_TAG_OPEN = '=== CLAUDE PROCESSING ===';
-const CLAUDE_TAG_CLOSE = '=== END CLAUDE ===';
+const CLAUDE_PROCESSING_START = '```ad-claude-processing';
+const CLAUDE_PROCESSING_END = '```';
 const CLAUDE_RESPONSE_START = '```ad-claude';
 const CLAUDE_ERROR_START = '```ad-claude-error';
 const CLAUDE_BLOCK_END = '```';
@@ -31,11 +31,11 @@ export class TagManager {
 	}
 
 	/**
-	 * Inject Claude tags at the current selection or cursor position
+	 * Inject Claude processing admonition at the current selection or cursor position
 	 * Returns the positions of the injected tags
 	 */
 	injectTags(editor: Editor, selectedText: string): TagInjectionResult {
-		logger.info('[TagManager] Injecting tags...');
+		logger.info('[TagManager] Injecting processing admonition...');
 		logger.debug('[TagManager] Selected text length:', selectedText.length);
 
 		try {
@@ -47,8 +47,8 @@ export class TagManager {
 			let endPos: DocumentPosition;
 
 			if (hasSelection) {
-				// Wrap selected text with tags on separate lines
-				taggedContent = `${CLAUDE_TAG_OPEN}\n${selectedText}\n${CLAUDE_TAG_CLOSE}`;
+				// Wrap selected text in processing admonition
+				taggedContent = `${CLAUDE_PROCESSING_START}\n${selectedText}\n${CLAUDE_PROCESSING_END}`;
 
 				// Get selection boundaries
 				const from = editor.getCursor('from');
@@ -65,8 +65,8 @@ export class TagManager {
 					ch: lines[lines.length - 1].length
 				};
 			} else {
-				// No selection - insert tags at cursor with empty line between
-				taggedContent = `${CLAUDE_TAG_OPEN}\n\n${CLAUDE_TAG_CLOSE}`;
+				// No selection - insert empty processing admonition
+				taggedContent = `${CLAUDE_PROCESSING_START}\n\n${CLAUDE_PROCESSING_END}`;
 				startPos = { line: cursor.line, ch: cursor.ch };
 
 				// Insert at cursor
@@ -79,7 +79,7 @@ export class TagManager {
 				};
 			}
 
-			logger.info('[TagManager] Tags injected:', { startPos, endPos });
+			logger.info('[TagManager] Processing admonition injected:', { startPos, endPos });
 
 			return {
 				success: true,
@@ -87,7 +87,7 @@ export class TagManager {
 				endPos,
 			};
 		} catch (error) {
-			logger.error('[TagManager] Failed to inject tags:', error);
+			logger.error('[TagManager] Failed to inject processing admonition:', error);
 			return {
 				success: false,
 				startPos: { line: 0, ch: 0 },
@@ -98,8 +98,8 @@ export class TagManager {
 	}
 
 	/**
-	 * Find Claude tags in the document
-	 * Returns the position of the tags or null if not found
+	 * Find Claude processing admonition in the document
+	 * Returns the position of the admonition or null if not found
 	 */
 	findTags(editor: Editor, expectedStartPos: DocumentPosition): {
 		found: boolean;
@@ -107,7 +107,7 @@ export class TagManager {
 		endPos?: DocumentPosition;
 		content?: string;
 	} {
-		logger.debug('[TagManager] Searching for tags near:', expectedStartPos);
+		logger.debug('[TagManager] Searching for processing admonition near:', expectedStartPos);
 
 		const docContent = editor.getValue();
 		const lines = docContent.split('\n');
@@ -116,12 +116,12 @@ export class TagManager {
 		const searchStartLine = Math.max(0, expectedStartPos.line - 5);
 		const searchEndLine = Math.min(lines.length, expectedStartPos.line + 20);
 
-		// Find the opening tag line
+		// Find the opening admonition line
 		let openLineNum = -1;
 		let openCh = 0;
 		for (let lineNum = searchStartLine; lineNum < searchEndLine; lineNum++) {
 			const line = lines[lineNum];
-			const openIdx = line.indexOf(CLAUDE_TAG_OPEN);
+			const openIdx = line.indexOf(CLAUDE_PROCESSING_START);
 			if (openIdx >= 0) {
 				openLineNum = lineNum;
 				openCh = openIdx;
@@ -130,25 +130,25 @@ export class TagManager {
 		}
 
 		if (openLineNum === -1) {
-			logger.warn('[TagManager] Opening tag not found');
+			logger.warn('[TagManager] Processing admonition not found');
 			return { found: false };
 		}
 
-		// Find the closing tag line (search from after opening tag)
+		// Find the closing ``` (search from after opening tag)
 		let closeLineNum = -1;
 		let closeCh = 0;
 		for (let lineNum = openLineNum + 1; lineNum < Math.min(lines.length, openLineNum + 50); lineNum++) {
-			const line = lines[lineNum];
-			const closeIdx = line.indexOf(CLAUDE_TAG_CLOSE);
-			if (closeIdx >= 0) {
+			const line = lines[lineNum].trim();
+			// Look for a line that is exactly ``` (closing the code block)
+			if (line === '```') {
 				closeLineNum = lineNum;
-				closeCh = closeIdx + CLAUDE_TAG_CLOSE.length;
+				closeCh = lines[lineNum].indexOf('```') + 3;
 				break;
 			}
 		}
 
 		if (closeLineNum === -1) {
-			logger.warn('[TagManager] Closing tag not found');
+			logger.warn('[TagManager] Closing ``` not found');
 			return { found: false };
 		}
 
@@ -159,7 +159,7 @@ export class TagManager {
 		const startPos = { line: openLineNum, ch: openCh };
 		const endPos = { line: closeLineNum, ch: closeCh };
 
-		logger.debug('[TagManager] Tags found:', { startPos, endPos });
+		logger.debug('[TagManager] Processing admonition found:', { startPos, endPos });
 
 		return {
 			found: true,

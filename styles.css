@@ -284,3 +284,80 @@
 .claude-skill-button:hover {
 	background-color: var(--background-modifier-hover);
 }
+
+/* Processing Admonition - Overlay Effect */
+.callout[data-callout="claude-processing"] {
+	position: relative;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--interactive-accent);
+	border-left: 4px solid var(--interactive-accent);
+	opacity: 0.7;
+	animation: claude-processing-pulse 2s ease-in-out infinite;
+}
+
+.callout[data-callout="claude-processing"]::before {
+	content: "Claude is processing...";
+	position: absolute;
+	top: 8px;
+	right: 12px;
+	font-size: 0.8em;
+	color: var(--interactive-accent);
+	font-weight: 500;
+}
+
+.callout[data-callout="claude-processing"]::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(
+		90deg,
+		transparent 0%,
+		rgba(var(--interactive-accent-rgb), 0.1) 50%,
+		transparent 100%
+	);
+	animation: claude-shimmer 2s ease-in-out infinite;
+	pointer-events: none;
+}
+
+@keyframes claude-processing-pulse {
+	0%, 100% {
+		opacity: 0.6;
+	}
+	50% {
+		opacity: 0.85;
+	}
+}
+
+@keyframes claude-shimmer {
+	0% {
+		transform: translateX(-100%);
+	}
+	100% {
+		transform: translateX(100%);
+	}
+}
+
+/* Response Admonition */
+.callout[data-callout="claude"] {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-left: 4px solid var(--interactive-accent);
+}
+
+.callout[data-callout="claude"] .callout-title {
+	color: var(--interactive-accent);
+}
+
+/* Error Admonition */
+.callout[data-callout="claude-error"] {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--text-error);
+	border-left: 4px solid var(--text-error);
+}
+
+.callout[data-callout="claude-error"] .callout-title {
+	color: var(--text-error);
+}
