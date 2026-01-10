@@ -285,8 +285,8 @@
 	background-color: var(--background-modifier-hover);
 }
 
-/* Processing Admonition - Overlay Effect */
-.admonition-claude-processing {
+/* Processing Callout - Overlay Effect (uses native Obsidian callout) */
+.callout[data-callout="claude-processing"] {
 	position: relative;
 	background-color: var(--background-secondary);
 	border: 1px solid var(--interactive-accent);
@@ -295,7 +295,7 @@
 	animation: claude-processing-pulse 2s ease-in-out infinite;
 }
 
-.admonition-claude-processing::before {
+.callout[data-callout="claude-processing"]::before {
 	content: "Claude is processing...";
 	position: absolute;
 	top: 8px;
@@ -305,7 +305,7 @@
 	font-weight: 500;
 }
 
-.admonition-claude-processing::after {
+.callout[data-callout="claude-processing"]::after {
 	content: "";
 	position: absolute;
 	top: 0;
@@ -340,7 +340,7 @@
 	}
 }
 
-/* Response Admonition */
+/* Response Admonition (uses Admonitions plugin format for clean text) */
 .admonition-claude {
 	background-color: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
