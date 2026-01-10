@@ -3,7 +3,7 @@
  */
 
 import { spawn, ChildProcess } from 'child_process';
-import { ClaudeProcessOptions } from './types';
+import { ClaudeProcessOptions, FileContext } from './types';
 import { stripAnsiCodes } from './utils';
 import { logger } from './logger';
 
@@ -38,8 +38,11 @@ export class ClaudeProcess {
 
 	/**
 	 * Send a command to Claude (spawns fresh process with --print mode)
+	 * @param command - The user's command/request
+	 * @param selectedText - The text the user selected (if any)
+	 * @param fileContext - File context including path and content
 	 */
-	async sendCommand(command: string, context?: string): Promise<string> {
+	async sendCommand(command: string, selectedText?: string, fileContext?: FileContext): Promise<string> {
 		logger.info(`[Session ${this.sessionId}] Executing command:`, command.substring(0, 100));
 
 		if (!this.isActive) {
@@ -48,13 +51,9 @@ export class ClaudeProcess {
 		}
 
 		return new Promise((resolve, reject) => {
-			// Prepare input: context (if provided) + command
-			let input = '';
-			if (context) {
-				logger.debug(`[Session ${this.sessionId}] Including context, length:`, context.length);
-				input += `Here is some context:\n\n${context}\n\n`;
-			}
-			input += command;
+			// Build the prompt with file context (Feature 007)
+			const input = this.buildPrompt(command, selectedText, fileContext);
+			logger.debug(`[Session ${this.sessionId}] Built prompt, length:`, input.length);
 
 			logger.debug(`[Session ${this.sessionId}] Spawning claude --print --continue...`);
 
@@ -182,6 +181,50 @@ export class ClaudeProcess {
 		cleaned = cleaned.trim();
 
 		return cleaned;
+	}
+
+	/**
+	 * Build the prompt with file context (Feature 007)
+	 * Format:
+	 * You are helping edit a file in Obsidian.
+	 *
+	 * File: {{filepath}}
+	 * ---
+	 * {{file content}}
+	 * ---
+	 *
+	 * Selected text: {{selection or "none"}}
+	 *
+	 * User request: {{command}}
+	 */
+	private buildPrompt(command: string, selectedText?: string, fileContext?: FileContext): string {
+		const parts: string[] = [];
+
+		// System context
+		parts.push('You are helping edit a file in Obsidian.');
+		parts.push('');
+
+		// File context if available
+		if (fileContext) {
+			parts.push(`File: ${fileContext.filePath}`);
+			if (fileContext.truncated) {
+				parts.push('[File truncated - showing first 50KB]');
+			}
+			parts.push('---');
+			parts.push(fileContext.fileContent);
+			parts.push('---');
+			parts.push('');
+		}
+
+		// Selected text
+		const selection = selectedText && selectedText.length > 0 ? selectedText : 'none';
+		parts.push(`Selected text: ${selection}`);
+		parts.push('');
+
+		// User request
+		parts.push(`User request: ${command}`);
+
+		return parts.join('\n');
 	}
 }
 

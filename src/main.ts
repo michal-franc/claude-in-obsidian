@@ -4,7 +4,7 @@
  */
 
 import { Editor, MarkdownView, MarkdownFileInfo, Notice, Plugin, TFile } from 'obsidian';
-import { ClaudeFromObsidianSettings, DEFAULT_SETTINGS, ActiveRequest } from './types';
+import { ClaudeFromObsidianSettings, DEFAULT_SETTINGS, ActiveRequest, FileContext } from './types';
 import { ClaudeProcessManager } from './process-manager';
 import { DefaultSessionManager } from './default-session-manager';
 import { ClaudeSettingsTab } from './settings-tab';
@@ -14,6 +14,9 @@ import { TagManager } from './tag-manager';
 import { InlinePrompt } from './inline-prompt';
 import { SkillManager } from './skill-manager';
 import { logger } from './logger';
+
+// Maximum file size for context (50KB as per Feature 007)
+const MAX_FILE_SIZE_BYTES = 50 * 1024;
 
 export default class ClaudeFromObsidianPlugin extends Plugin {
 	settings!: ClaudeFromObsidianSettings;
@@ -250,10 +253,15 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		logger.info('Processing request:', request.requestId);
 
 		try {
+			// Get file context for context awareness (Feature 007)
+			const activeFile = this.app.workspace.getActiveFile();
+			const fileContext = await this.getFileContext(activeFile);
+
 			// Execute the command via session manager
 			const response = await this.sessionManager.executeCommand(
 				request.command,
-				request.originalText
+				request.originalText,
+				fileContext
 			);
 
 			// Check if tags are still intact
@@ -335,6 +343,46 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			} else {
 				this.statusBarManager.setIdle();
 			}
+		}
+	}
+
+	/**
+	 * Read file content and build FileContext for context awareness (Feature 007)
+	 * Truncates content if file is larger than MAX_FILE_SIZE_BYTES
+	 */
+	private async getFileContext(file: TFile | null): Promise<FileContext | undefined> {
+		if (!file) {
+			logger.debug('[Main] No active file, skipping file context');
+			return undefined;
+		}
+
+		try {
+			const content = await this.app.vault.read(file);
+			const contentBytes = new TextEncoder().encode(content).length;
+
+			let truncated = false;
+			let fileContent = content;
+
+			if (contentBytes > MAX_FILE_SIZE_BYTES) {
+				logger.info(`[Main] File too large (${contentBytes} bytes), truncating to ${MAX_FILE_SIZE_BYTES} bytes`);
+				// Truncate by characters (approximate, but good enough for text)
+				// Find a reasonable cutoff point (try to avoid cutting mid-line)
+				const maxChars = Math.floor(content.length * (MAX_FILE_SIZE_BYTES / contentBytes));
+				const cutoff = content.lastIndexOf('\n', maxChars);
+				fileContent = content.substring(0, cutoff > 0 ? cutoff : maxChars);
+				truncated = true;
+			}
+
+			logger.debug(`[Main] File context built for: ${file.path}, truncated: ${truncated}`);
+
+			return {
+				filePath: file.path,
+				fileContent,
+				truncated,
+			};
+		} catch (error) {
+			logger.error('[Main] Failed to read file for context:', error);
+			return undefined;
 		}
 	}
 }
