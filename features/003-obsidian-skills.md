@@ -1,7 +1,7 @@
 # 003: Shared Skills - Quick Action Buttons
 
 ## Status
-Draft (depends on feature 004)
+In Progress
 
 ## Context
 Users often repeat the same commands to Claude - things like "improve this text", "fix grammar", "summarize", etc. Currently they have to type these commands every time.
@@ -9,18 +9,30 @@ Users often repeat the same commands to Claude - things like "improve this text"
 Users want to:
 - Define reusable "skills" (pre-configured prompts/actions)
 - Trigger them with a single click instead of typing
-- Use the same skills in Obsidian AND Claude shell
+- Use the same skills in Obsidian AND Claude CLI (when run from vault)
 
 ## Decision
-Store skills in a shared location (alongside Claude config) so they work in both Obsidian plugin and Claude shell. Show up to 3 skill buttons in the inline prompt UI (feature 004).
+Store skills in the vault's `.claude/skills/` folder following the Claude CLI convention. This allows skills to work with both the Obsidian plugin and Claude CLI when run from the vault directory.
 
 ### Core Behavior
 
 1. **Skill Storage Location**
-   - Skills stored in `~/.claude/skills/` (shared with Claude shell)
-   - Each skill is a markdown file with frontmatter
+   - Skills stored in `<vault>/.claude/skills/<skill-name>/SKILL.md`
+   - Follows Claude CLI convention for compatibility
+   - Future: add global skills from `~/.claude/skills/` as optional feature
 
-2. **Skill File Format**
+2. **Skill Folder Structure**
+   ```
+   <vault>/.claude/skills/
+   ├── improve-writing/
+   │   └── SKILL.md
+   ├── fix-grammar/
+   │   └── SKILL.md
+   └── summarize/
+       └── SKILL.md
+   ```
+
+3. **SKILL.md Format**
    ```markdown
    ---
    name: Improve Writing
@@ -33,10 +45,10 @@ Store skills in a shared location (alongside Claude config) so they work in both
    {{selection}}
    ```
 
-3. **Variables Available**
+4. **Variables Available**
    - `{{selection}}` - Currently selected text (only variable for now)
 
-4. **UI Integration** (with feature 004 inline prompt)
+5. **UI Integration** (with feature 004 inline prompt)
    ```
    ┌─────────────────────────────────┐
    │ Ask Claude: [type here___] ⏎   │
@@ -47,29 +59,33 @@ Store skills in a shared location (alongside Claude config) so they work in both
    - Click a skill → **auto-submit immediately** (no editing)
    - Template substituted with `{{selection}}` before sending
 
-5. **Behavior**
+6. **Behavior**
    - Skills are loaded on plugin startup
    - First 3 skills shown (ordered alphabetically by name)
    - No keyboard shortcuts for skills
-   - Auto-create `~/.claude/skills/` folder with one example skill on first run
+   - No auto-creation of folders (don't pollute user's vault without consent)
+   - Missing folder = no skill buttons shown
 
 ### Example Skills
 ```
-~/.claude/skills/
-  improve-writing.md
-  fix-grammar.md
-  summarize.md
+<vault>/.claude/skills/
+├── improve/
+│   └── SKILL.md
+├── fix-grammar/
+│   └── SKILL.md
+└── summarize/
+    └── SKILL.md
 ```
 
 ## Implementation Plan
 
-**Prerequisite:** Feature 004 (Simplified Inline Editing) must be implemented first.
+**Prerequisite:** Feature 004 (Simplified Inline Editing) - ✅ Implemented
 
 ### Phase 1: Skill Loader
-- Create SkillManager to read from `~/.claude/skills/`
-- Parse frontmatter (name, description) and template content
+- Create SkillManager to read from `<vault>/.claude/skills/*/SKILL.md`
+- Parse YAML frontmatter (name, description) and template content
 - Load skills on plugin init, cache in memory
-- Auto-create folder with example skill if missing
+- Handle missing folder gracefully (no skills = no buttons)
 
 ### Phase 2: UI Integration
 - Add skill buttons to InlinePrompt component (from feature 004)
@@ -85,13 +101,19 @@ Store skills in a shared location (alongside Claude config) so they work in both
 
 ### Pros
 - Much faster for common operations
-- Skills work in both Obsidian and Claude shell
-- Easy to share skills (just copy files)
+- Skills compatible with Claude CLI (same folder structure)
+- Easy to share skills (just copy folders)
 - Simple - one variable, max 3 buttons
+- No auto-creation = respects user's vault
 
 ### Cons
-- Requires file system access outside vault
-- Skills folder must be created manually (or auto-create)
+- User must manually create `.claude/skills/` folder
+- Skills folder may be hidden in some file explorers
+
+## Future Enhancements
+- Add global skills from `~/.claude/skills/` (opt-in setting)
+- More variables (`{{filename}}`, `{{filepath}}`, etc.)
+- Configurable max buttons
 
 ## Open Questions
-None - all questions resolved. Ready for approval.
+None - all questions resolved. Ready for implementation.
