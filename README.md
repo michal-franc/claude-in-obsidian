@@ -9,6 +9,8 @@ A lightweight Obsidian plugin for quick inline communication with Claude Shell C
 - **Visual Feedback**: Processing state shown with styled callouts
 - **Simple**: Single session, minimal configuration, just works
 
+![Demo](docs/demo.gif)
+
 ## Quick Start
 
 1. Install [Claude CLI](https://docs.anthropic.com/claude/docs/claude-cli) and authenticate
