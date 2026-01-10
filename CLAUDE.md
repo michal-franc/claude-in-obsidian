@@ -19,8 +19,55 @@ After completing work:
 
 This applies to ALL work: features, bugs, refactoring, etc.
 
-# Git
-On each phase remember to commit the changes with comment etc
+# Git & GitHub Workflow
+
+**All changes must go through Pull Requests for review.**
+
+## Branch Naming
+Use descriptive branch names:
+- Features: `feature/short-description` (e.g., `feature/skills-buttons`)
+- Bugs: `fix/short-description` (e.g., `fix/callout-styling`)
+- Docs: `docs/short-description` (e.g., `docs/readme-update`)
+
+## Workflow
+
+### 1. Start Work - Create Branch
+```bash
+git checkout master
+git pull origin master
+git checkout -b feature/your-feature-name
+```
+
+### 2. During Work - Commit Regularly
+```bash
+git add -A
+git commit -m "Description of change"
+```
+
+### 3. Complete Work - Push & Create PR
+```bash
+# Push branch to GitHub
+git push -u origin feature/your-feature-name
+
+# Create Pull Request using GitHub CLI
+gh pr create --title "Feature: Short description" --body "## Summary
+- What was done
+
+## Test plan
+- How to test"
+```
+
+### 4. After PR Merged - Cleanup
+```bash
+git checkout master
+git pull origin master
+git branch -d feature/your-feature-name
+```
+
+## Important
+- Never push directly to master
+- Wait for PR approval before merging
+- Keep PRs focused on single features/fixes
 
 # Development Rules
 
