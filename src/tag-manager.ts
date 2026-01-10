@@ -1,16 +1,16 @@
 /**
- * Tag manager for injecting and managing Claude tags in documents
+ * Tag manager for injecting and managing Claude callouts in documents
+ * Uses Obsidian native callout format: > [!type]
  */
 
 import { Editor } from 'obsidian';
 import { ActiveRequest, DocumentPosition } from './types';
 import { logger } from './logger';
 
-const CLAUDE_PROCESSING_START = '```ad-claude-processing';
-const CLAUDE_PROCESSING_END = '```';
-const CLAUDE_RESPONSE_START = '```ad-claude';
-const CLAUDE_ERROR_START = '```ad-claude-error';
-const CLAUDE_BLOCK_END = '```';
+// Obsidian native callout types
+const CALLOUT_PROCESSING = 'claude-processing';
+const CALLOUT_RESPONSE = 'claude';
+const CALLOUT_ERROR = 'claude-error';
 
 /**
  * Result of tag injection
@@ -23,7 +23,30 @@ export interface TagInjectionResult {
 }
 
 /**
- * Manages tag injection and response replacement in documents
+ * Helper to convert text to callout format
+ * Each line must be prefixed with "> "
+ */
+function toCallout(type: string, content: string): string {
+	const lines = content.split('\n');
+	const calloutLines = lines.map(line => `> ${line}`);
+	return `> [!${type}]\n${calloutLines.join('\n')}`;
+}
+
+/**
+ * Helper to extract content from callout format
+ * Removes "> " prefix from each line
+ */
+function fromCallout(calloutContent: string): string {
+	const lines = calloutContent.split('\n');
+	// Skip the first line (> [!type]) and strip "> " from remaining lines
+	return lines
+		.slice(1)
+		.map(line => line.replace(/^>\s?/, ''))
+		.join('\n');
+}
+
+/**
+ * Manages callout injection and response replacement in documents
  */
 export class TagManager {
 	constructor() {
@@ -31,55 +54,38 @@ export class TagManager {
 	}
 
 	/**
-	 * Inject Claude processing admonition at the current selection or cursor position
-	 * Returns the positions of the injected tags
+	 * Inject Claude processing callout at the current selection or cursor position
+	 * Returns the positions of the injected callout
 	 */
 	injectTags(editor: Editor, selectedText: string): TagInjectionResult {
-		logger.info('[TagManager] Injecting processing admonition...');
+		logger.info('[TagManager] Injecting processing callout...');
 		logger.debug('[TagManager] Selected text length:', selectedText.length);
 
 		try {
-			const cursor = editor.getCursor();
 			const hasSelection = selectedText.length > 0;
+			const from = editor.getCursor('from');
 
-			let taggedContent: string;
-			let startPos: DocumentPosition;
-			let endPos: DocumentPosition;
+			// Create the callout content
+			const content = hasSelection ? selectedText : '';
+			const callout = toCallout(CALLOUT_PROCESSING, content);
 
+			const startPos = { line: from.line, ch: from.ch };
+
+			// Replace selection or insert at cursor
 			if (hasSelection) {
-				// Wrap selected text in processing admonition
-				taggedContent = `${CLAUDE_PROCESSING_START}\n${selectedText}\n${CLAUDE_PROCESSING_END}`;
-
-				// Get selection boundaries
-				const from = editor.getCursor('from');
-
-				startPos = { line: from.line, ch: from.ch };
-
-				// Replace selection with tagged content
-				editor.replaceSelection(taggedContent);
-
-				// Calculate end position after insertion
-				const lines = taggedContent.split('\n');
-				endPos = {
-					line: from.line + lines.length - 1,
-					ch: lines[lines.length - 1].length
-				};
+				editor.replaceSelection(callout);
 			} else {
-				// No selection - insert empty processing admonition
-				taggedContent = `${CLAUDE_PROCESSING_START}\n\n${CLAUDE_PROCESSING_END}`;
-				startPos = { line: cursor.line, ch: cursor.ch };
-
-				// Insert at cursor
-				editor.replaceRange(taggedContent, cursor);
-
-				const lines = taggedContent.split('\n');
-				endPos = {
-					line: cursor.line + lines.length - 1,
-					ch: lines[lines.length - 1].length
-				};
+				editor.replaceRange(callout, from);
 			}
 
-			logger.info('[TagManager] Processing admonition injected:', { startPos, endPos });
+			// Calculate end position after insertion
+			const lines = callout.split('\n');
+			const endPos = {
+				line: from.line + lines.length - 1,
+				ch: lines[lines.length - 1].length
+			};
+
+			logger.info('[TagManager] Processing callout injected:', { startPos, endPos });
 
 			return {
 				success: true,
@@ -87,7 +93,7 @@ export class TagManager {
 				endPos,
 			};
 		} catch (error) {
-			logger.error('[TagManager] Failed to inject processing admonition:', error);
+			logger.error('[TagManager] Failed to inject processing callout:', error);
 			return {
 				success: false,
 				startPos: { line: 0, ch: 0 },
@@ -98,8 +104,8 @@ export class TagManager {
 	}
 
 	/**
-	 * Find Claude processing admonition in the document
-	 * Returns the position of the admonition or null if not found
+	 * Find Claude processing callout in the document
+	 * Returns the position of the callout or null if not found
 	 */
 	findTags(editor: Editor, expectedStartPos: DocumentPosition): {
 		found: boolean;
@@ -107,7 +113,7 @@ export class TagManager {
 		endPos?: DocumentPosition;
 		content?: string;
 	} {
-		logger.debug('[TagManager] Searching for processing admonition near:', expectedStartPos);
+		logger.debug('[TagManager] Searching for processing callout near:', expectedStartPos);
 
 		const docContent = editor.getValue();
 		const lines = docContent.split('\n');
@@ -116,12 +122,13 @@ export class TagManager {
 		const searchStartLine = Math.max(0, expectedStartPos.line - 5);
 		const searchEndLine = Math.min(lines.length, expectedStartPos.line + 20);
 
-		// Find the opening admonition line
+		// Find the opening callout line: > [!claude-processing]
+		const calloutHeader = `> [!${CALLOUT_PROCESSING}]`;
 		let openLineNum = -1;
 		let openCh = 0;
 		for (let lineNum = searchStartLine; lineNum < searchEndLine; lineNum++) {
 			const line = lines[lineNum];
-			const openIdx = line.indexOf(CLAUDE_PROCESSING_START);
+			const openIdx = line.indexOf(calloutHeader);
 			if (openIdx >= 0) {
 				openLineNum = lineNum;
 				openCh = openIdx;
@@ -130,36 +137,32 @@ export class TagManager {
 		}
 
 		if (openLineNum === -1) {
-			logger.warn('[TagManager] Processing admonition not found');
+			logger.warn('[TagManager] Processing callout not found');
 			return { found: false };
 		}
 
-		// Find the closing ``` (search from after opening tag)
-		let closeLineNum = -1;
-		let closeCh = 0;
+		// Find the end of the callout (first line that doesn't start with ">")
+		let closeLineNum = openLineNum;
 		for (let lineNum = openLineNum + 1; lineNum < Math.min(lines.length, openLineNum + 50); lineNum++) {
-			const line = lines[lineNum].trim();
-			// Look for a line that is exactly ``` (closing the code block)
-			if (line === '```') {
-				closeLineNum = lineNum;
-				closeCh = lines[lineNum].indexOf('```') + 3;
+			const line = lines[lineNum];
+			// Callout continues as long as line starts with ">" or is empty
+			if (!line.startsWith('>') && line.trim() !== '') {
 				break;
+			}
+			// If line starts with ">", it's part of the callout
+			if (line.startsWith('>')) {
+				closeLineNum = lineNum;
 			}
 		}
 
-		if (closeLineNum === -1) {
-			logger.warn('[TagManager] Closing ``` not found');
-			return { found: false };
-		}
-
-		// Extract content between tags (excluding the tag lines themselves)
-		const contentLines = lines.slice(openLineNum + 1, closeLineNum);
-		const content = contentLines.join('\n');
+		// Extract content (the callout lines)
+		const calloutLines = lines.slice(openLineNum, closeLineNum + 1);
+		const content = fromCallout(calloutLines.join('\n'));
 
 		const startPos = { line: openLineNum, ch: openCh };
-		const endPos = { line: closeLineNum, ch: closeCh };
+		const endPos = { line: closeLineNum, ch: lines[closeLineNum].length };
 
-		logger.debug('[TagManager] Processing admonition found:', { startPos, endPos });
+		logger.debug('[TagManager] Processing callout found:', { startPos, endPos });
 
 		return {
 			found: true,
@@ -170,78 +173,76 @@ export class TagManager {
 	}
 
 	/**
-	 * Replace tags with response (keeps original text, wraps response in admonition)
+	 * Replace processing callout with response callout
 	 */
 	replaceWithResponse(
 		editor: Editor,
 		request: ActiveRequest,
 		response: string
 	): boolean {
-		logger.info('[TagManager] Replacing tags with response...');
+		logger.info('[TagManager] Replacing callout with response...');
 
 		const tagSearch = this.findTags(editor, request.tagStartPos);
 
 		if (!tagSearch.found || !tagSearch.startPos || !tagSearch.endPos) {
-			logger.warn('[TagManager] Tags not found, cannot replace');
+			logger.warn('[TagManager] Callout not found, cannot replace');
 			return false;
 		}
 
 		try {
-			// Build the replacement text:
-			// original text
-			// ```ad-claude
-			// response
-			// ```
+			// Build replacement: original text + response callout
 			const originalText = request.originalText;
+			const responseCallout = toCallout(CALLOUT_RESPONSE, response);
 			let replacement: string;
 
 			if (originalText.length > 0) {
-				replacement = `${originalText}\n${CLAUDE_RESPONSE_START}\n${response}\n${CLAUDE_BLOCK_END}`;
+				replacement = `${originalText}\n\n${responseCallout}`;
 			} else {
-				replacement = `${CLAUDE_RESPONSE_START}\n${response}\n${CLAUDE_BLOCK_END}`;
+				replacement = responseCallout;
 			}
 
-			// Replace the entire tagged region
+			// Replace the entire callout region
 			editor.replaceRange(
 				replacement,
 				tagSearch.startPos,
 				tagSearch.endPos
 			);
 
-			logger.info('[TagManager] Response injected successfully');
+			logger.info('[TagManager] Response callout injected successfully');
 			return true;
 		} catch (error) {
-			logger.error('[TagManager] Failed to replace tags:', error);
+			logger.error('[TagManager] Failed to replace callout:', error);
 			return false;
 		}
 	}
 
 	/**
-	 * Inject error message inside the tags (uses ad-claude-error admonition)
+	 * Replace processing callout with error callout
 	 */
 	injectError(
 		editor: Editor,
 		request: ActiveRequest,
 		errorMessage: string
 	): boolean {
-		logger.info('[TagManager] Injecting error into tags...');
+		logger.info('[TagManager] Injecting error callout...');
 
 		const tagSearch = this.findTags(editor, request.tagStartPos);
 
 		if (!tagSearch.found || !tagSearch.startPos || !tagSearch.endPos) {
-			logger.warn('[TagManager] Tags not found, cannot inject error');
+			logger.warn('[TagManager] Callout not found, cannot inject error');
 			return false;
 		}
 
 		try {
-			// Keep original text and add error in error admonition
+			// Build replacement: original text + error callout
 			const originalText = request.originalText;
+			const errorCallout = toCallout(CALLOUT_ERROR, errorMessage);
 			let replacement: string;
 
 			if (originalText.length > 0) {
-				replacement = `${originalText}\n${CLAUDE_ERROR_START}\n${errorMessage}\n${CLAUDE_BLOCK_END}`;
+				replacement = `${originalText}\n\n${errorCallout}`;
 			} else {
-				replacement = `${CLAUDE_ERROR_START}\n${errorMessage}\n${CLAUDE_BLOCK_END}`;
+				replacement = errorCallout;
 			}
 
 			editor.replaceRange(
@@ -250,16 +251,16 @@ export class TagManager {
 				tagSearch.endPos
 			);
 
-			logger.info('[TagManager] Error injected successfully');
+			logger.info('[TagManager] Error callout injected successfully');
 			return true;
 		} catch (error) {
-			logger.error('[TagManager] Failed to inject error:', error);
+			logger.error('[TagManager] Failed to inject error callout:', error);
 			return false;
 		}
 	}
 
 	/**
-	 * Check if tags are still intact (not modified by user)
+	 * Check if processing callout is still intact (not modified by user)
 	 */
 	areTagsIntact(editor: Editor, request: ActiveRequest): boolean {
 		const tagSearch = this.findTags(editor, request.tagStartPos);
@@ -267,30 +268,29 @@ export class TagManager {
 	}
 
 	/**
-	 * Remove tags without adding response (cleanup)
+	 * Remove callout and restore original text
 	 */
 	removeTags(editor: Editor, request: ActiveRequest): boolean {
-		logger.info('[TagManager] Removing tags...');
+		logger.info('[TagManager] Removing callout...');
 
 		const tagSearch = this.findTags(editor, request.tagStartPos);
 
 		if (!tagSearch.found || !tagSearch.startPos || !tagSearch.endPos) {
-			logger.warn('[TagManager] Tags not found, nothing to remove');
+			logger.warn('[TagManager] Callout not found, nothing to remove');
 			return false;
 		}
 
 		try {
-			// Just restore the original text
 			editor.replaceRange(
 				request.originalText,
 				tagSearch.startPos,
 				tagSearch.endPos
 			);
 
-			logger.info('[TagManager] Tags removed successfully');
+			logger.info('[TagManager] Callout removed successfully');
 			return true;
 		} catch (error) {
-			logger.error('[TagManager] Failed to remove tags:', error);
+			logger.error('[TagManager] Failed to remove callout:', error);
 			return false;
 		}
 	}
