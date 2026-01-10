@@ -1,7 +1,9 @@
 # 001: Parallel Claude Execution with Visual Indicators
 
 ## Status
-Implemented
+Implemented (v0.2.0)
+
+**Note:** Original design used `<CLAUDE>` tags. Final implementation uses native Obsidian callouts (`> [!claude-processing]`) for better visual integration.
 
 ## Context
 Currently, when a user sends a command to Claude, they must wait for the response before continuing their work. This blocks the user's workflow, especially for longer-running requests.

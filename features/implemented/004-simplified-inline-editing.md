@@ -1,7 +1,7 @@
 # 004: Simplified Inline Editing
 
 ## Status
-Approved
+Implemented (v0.2.0)
 
 ## Context
 The current modal-based workflow requires multiple steps:
@@ -56,14 +56,18 @@ Selected text here...
 **Credit:** For users needing advanced features, we recommend [Claudian](https://github.com/YishenTu/claudian).
 
 ### Error Display
-- Errors shown inline in document using `ad-claude-error` admonition
-- Can be styled with red/warning colors via CSS
+- Errors shown inline using native Obsidian callouts
+- Styled with red/warning colors via plugin CSS
 - Format:
+  ```markdown
+  > [!claude-error]
+  > Error: Connection timeout
   ```
-  ```ad-claude-error
-  Error: Connection timeout
-  ```
-  ```
+
+### Visual States (Native Callouts)
+- Processing: `> [!claude-processing]` - animated overlay
+- Response: `> [!claude]` - accent-colored border
+- Error: `> [!claude-error]` - red border
 
 ## Implementation Plan
 

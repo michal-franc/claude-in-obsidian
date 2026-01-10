@@ -111,6 +111,10 @@ Each feature file should include:
 2. **Iterate** - Discuss and refine the feature document
 3. **Approve** - User marks status as "Approved"
 4. **Implement** - Only then proceed with implementation following the plan
+5. **Complete** - When feature is implemented:
+   - Update status to "Implemented (vX.X.X)"
+   - Move file to `features/implemented/`
+   - Update `features/README.md` index
 
 ## Bug Tracking
 
