@@ -9,7 +9,9 @@ A lightweight Obsidian plugin for quick inline communication with Claude Shell C
 - **Visual Feedback**: Processing state shown with styled callouts
 - **Simple**: Single session, minimal configuration, just works
 
-![Demo](docs/demo.gif)
+![Inline Prompt](docs/demo.gif)
+
+![Full Workflow](docs/demo-workflow.gif)
 
 ## Quick Start
 
