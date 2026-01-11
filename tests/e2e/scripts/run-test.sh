@@ -49,7 +49,11 @@ xdotool key Return
 sleep 0.5
 
 echo "3. Taking 'before' screenshot..."
-scrot "$SCREENSHOT_DIR/${TEST_NAME}-before.png"
+if command -v scrot &> /dev/null; then
+    scrot "$SCREENSHOT_DIR/${TEST_NAME}-before.png"
+else
+    echo "   (scrot not installed, skipping screenshot)"
+fi
 
 echo "4. Selecting text (Ctrl+A)..."
 xdotool key ctrl+a
@@ -68,7 +72,11 @@ echo "7. Waiting for Claude response (${TIMEOUT}s timeout)..."
 sleep "$TIMEOUT"
 
 echo "8. Taking 'after' screenshot..."
-scrot "$SCREENSHOT_DIR/${TEST_NAME}-after.png"
+if command -v scrot &> /dev/null; then
+    scrot "$SCREENSHOT_DIR/${TEST_NAME}-after.png"
+else
+    echo "   (scrot not installed, skipping screenshot)"
+fi
 
 echo "9. Copying result to clipboard (Ctrl+A, Ctrl+C)..."
 xdotool key ctrl+a

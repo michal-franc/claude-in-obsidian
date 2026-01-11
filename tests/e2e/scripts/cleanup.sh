@@ -36,4 +36,11 @@ EOF
 # Remove backup if exists
 rm -f ~/.config/obsidian/obsidian.json.backup
 
+# Restore test files to original state
+echo "Restoring test files..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+cd "$REPO_ROOT"
+git checkout tests/e2e/testvault/test-files/ 2>/dev/null || true
+
 echo "✅ Cleanup complete"
