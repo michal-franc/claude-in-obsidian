@@ -8,6 +8,9 @@ import { logger } from './logger';
 
 export type StatusBarState = 'idle' | 'processing' | 'warning' | 'error';
 
+/** Timeout for auto-cleanup of orphaned responses (5 minutes) */
+const ORPHANED_RESPONSE_CLEANUP_TIMEOUT_MS = 5 * 60 * 1000;
+
 export interface StatusBarInfo {
 	state: StatusBarState;
 	message?: string;
@@ -25,6 +28,8 @@ export class StatusBarManager {
 	private plugin: Plugin;
 	private app: App;
 	private currentInfo: StatusBarInfo = { state: 'idle' };
+	/** Timer for auto-cleanup of orphaned responses */
+	private warningCleanupTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	constructor(plugin: Plugin, app: App) {
 		this.plugin = plugin;
@@ -56,6 +61,7 @@ export class StatusBarManager {
 	 * Set to idle state
 	 */
 	setIdle(): void {
+		this.clearWarningCleanupTimer();
 		this.setState({ state: 'idle' });
 	}
 
@@ -68,14 +74,24 @@ export class StatusBarManager {
 
 	/**
 	 * Set to warning state (tags modified, response available)
+	 * Starts auto-cleanup timer to prevent memory leaks from orphaned responses
 	 */
 	setWarning(orphanedResponse: string, originalCommand?: string): void {
+		// Clear any existing cleanup timer
+		this.clearWarningCleanupTimer();
+
 		this.setState({
 			state: 'warning',
 			message: 'Click to view response',
 			orphanedResponse,
 			originalCommand,
 		});
+
+		// Start cleanup timer to auto-clear orphaned response after timeout
+		this.warningCleanupTimeout = setTimeout(() => {
+			logger.info('[StatusBarManager] Auto-cleaning orphaned response after timeout');
+			this.setIdle();
+		}, ORPHANED_RESPONSE_CLEANUP_TIMEOUT_MS);
 	}
 
 	/**
@@ -145,9 +161,20 @@ export class StatusBarManager {
 	}
 
 	/**
+	 * Clear the warning cleanup timer if it exists
+	 */
+	private clearWarningCleanupTimer(): void {
+		if (this.warningCleanupTimeout) {
+			clearTimeout(this.warningCleanupTimeout);
+			this.warningCleanupTimeout = null;
+		}
+	}
+
+	/**
 	 * Clean up status bar
 	 */
 	destroy(): void {
+		this.clearWarningCleanupTimer();
 		if (this.statusBarEl) {
 			this.statusBarEl.remove();
 			this.statusBarEl = null;
