@@ -141,3 +141,113 @@ describe('SKILL_NAME_FILTER constant', () => {
 		expect(SKILL_NAME_FILTER).toBe('claude-in-obsidian');
 	});
 });
+
+/**
+ * Issue #14: Performance - Skill loading is synchronous and not optimized
+ *
+ * Problem: Skills are loaded synchronously at plugin startup, which can delay
+ * plugin load time if there are many skill folders. Each skill folder causes
+ * multiple filesystem operations (exists, list, read).
+ *
+ * Fix: Implement lazy loading where skills are loaded on first access, not at startup.
+ * Also add caching to avoid redundant filesystem calls on subsequent loadSkills() calls.
+ */
+describe('Issue #14: SkillManager lazy loading', () => {
+	// Mock the App and adapter for testing SkillManager
+	const createMockAdapter = () => ({
+		exists: jest.fn(),
+		list: jest.fn(),
+		read: jest.fn(),
+	});
+
+	const createMockApp = (adapter: ReturnType<typeof createMockAdapter>) => ({
+		vault: { adapter }
+	} as any);
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+	});
+
+	it('should not load skills during construction', async () => {
+		const mockAdapter = createMockAdapter();
+		const mockApp = createMockApp(mockAdapter);
+
+		const { SkillManager } = await import('./skill-manager');
+
+		// Create the skill manager
+		new SkillManager(mockApp);
+
+		// EXPECTED: No filesystem calls during construction
+		expect(mockAdapter.exists).not.toHaveBeenCalled();
+		expect(mockAdapter.list).not.toHaveBeenCalled();
+		expect(mockAdapter.read).not.toHaveBeenCalled();
+	});
+
+	it('should cache skills after loadSkills() - second call should not hit filesystem', async () => {
+		const mockAdapter = createMockAdapter();
+		mockAdapter.exists.mockResolvedValue(true);
+		mockAdapter.list.mockResolvedValue({
+			folders: ['.claude/skills/claude-in-obsidian-skill1'],
+			files: []
+		});
+		mockAdapter.read.mockResolvedValue(`---
+name: Cached Skill
+---
+
+Template`);
+
+		const mockApp = createMockApp(mockAdapter);
+
+		const { SkillManager } = await import('./skill-manager');
+		const manager = new SkillManager(mockApp);
+
+		// First load - should hit filesystem
+		await manager.loadSkills();
+		const existsCallsAfterFirst = mockAdapter.exists.mock.calls.length;
+		expect(existsCallsAfterFirst).toBeGreaterThan(0);
+
+		// Reset mock call counts
+		mockAdapter.exists.mockClear();
+		mockAdapter.list.mockClear();
+		mockAdapter.read.mockClear();
+
+		// Second call to loadSkills() - should use cache (no new filesystem calls)
+		await manager.loadSkills();
+
+		// EXPECTED AFTER FIX: No new filesystem calls (using cache)
+		// CURRENT BEHAVIOR: loadSkills() re-reads everything
+		// This test will FAIL with current implementation
+		expect(mockAdapter.exists).not.toHaveBeenCalled();
+		expect(mockAdapter.list).not.toHaveBeenCalled();
+		expect(mockAdapter.read).not.toHaveBeenCalled();
+	});
+
+	it('should provide ensureLoaded() for async initialization', async () => {
+		const mockAdapter = createMockAdapter();
+		mockAdapter.exists.mockResolvedValue(true);
+		mockAdapter.list.mockResolvedValue({
+			folders: ['.claude/skills/claude-in-obsidian-test'],
+			files: []
+		});
+		mockAdapter.read.mockResolvedValue(`---
+name: Test Skill
+---
+
+Body`);
+
+		const mockApp = createMockApp(mockAdapter);
+
+		const { SkillManager } = await import('./skill-manager');
+		const manager = new SkillManager(mockApp);
+
+		// EXPECTED AFTER FIX: ensureLoaded() should exist for explicit async loading
+		// This allows callers to ensure skills are loaded before calling getSkills()
+		expect(typeof (manager as any).ensureLoaded).toBe('function');
+
+		// After ensureLoaded(), getSkills() should return skills without warning
+		await (manager as any).ensureLoaded();
+		const skills = manager.getSkills();
+		expect(skills.length).toBe(1);
+		expect(skills[0].name).toBe('Test Skill');
+	});
+});

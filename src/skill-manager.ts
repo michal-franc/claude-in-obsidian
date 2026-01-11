@@ -63,12 +63,37 @@ export class SkillManager {
 	}
 
 	/**
-	 * Load skills from .claude/skills/ folder
+	 * Ensure skills are loaded (lazy loading).
+	 * Call this before getSkills() if you need to wait for skills to be ready.
+	 * Uses caching - only loads from filesystem once.
+	 */
+	async ensureLoaded(): Promise<void> {
+		if (this.loaded) {
+			logger.debug('[SkillManager] Skills already loaded (cached)');
+			return;
+		}
+		await this.loadSkillsFromFilesystem();
+	}
+
+	/**
+	 * Load skills from .claude/skills/ folder (uses cache if already loaded)
 	 * Uses adapter API to access hidden folders that aren't indexed by vault
 	 * Call this on plugin startup
 	 */
 	async loadSkills(): Promise<void> {
-		logger.info('[SkillManager] Loading skills...');
+		if (this.loaded) {
+			logger.debug('[SkillManager] Skills already loaded (cached), skipping reload');
+			return;
+		}
+		await this.loadSkillsFromFilesystem();
+	}
+
+	/**
+	 * Internal method to load skills from filesystem
+	 * Always reads from disk, used by loadSkills() and reloadSkills()
+	 */
+	private async loadSkillsFromFilesystem(): Promise<void> {
+		logger.info('[SkillManager] Loading skills from filesystem...');
 		this.skills = [];
 
 		const adapter = this.app.vault.adapter;
@@ -175,9 +200,10 @@ export class SkillManager {
 
 	/**
 	 * Reload skills (e.g., when user adds new skills)
+	 * Forces a fresh read from filesystem, bypassing cache
 	 */
 	async reloadSkills(): Promise<void> {
 		this.loaded = false;
-		await this.loadSkills();
+		await this.loadSkillsFromFilesystem();
 	}
 }
