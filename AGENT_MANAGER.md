@@ -19,8 +19,10 @@ This prevents file conflicts and allows parallel work on different branches.
 ## Workflow Overview
 
 ```
-1. List Issues → 2. Analyze & Select 3 → 3. Label Issues → 4. Create Tmux Sessions → 5. Spawn Agents → 6. Monitor & Update Labels
+1. List Issues → 2. Analyze & Select 3 → 3. Create Tmux Sessions → 4. Spawn Agents → 5. Monitor Progress
 ```
+
+**Note:** Agents update their own labels (`in-progress` → `pr-open`) as they work.
 
 ## Issue Labels
 
@@ -46,25 +48,21 @@ gh label create "status: done" --description "PR merged, issue resolved" --color
 
 ### Label Workflow
 
-1. **Before assigning work:** Check for issues with `status: ready`
+**Manager responsibilities:**
+1. **Initial setup:** Ensure new issues are labeled `status: ready`
+   ```bash
+   gh issue edit <number> --add-label "status: ready"
+   ```
+
+2. **Before assigning work:** Check for issues with `status: ready`
    ```bash
    gh issue list --state open --label "status: ready"
    ```
 
-2. **When assigning to agent:** Change label to `status: in-progress`
-   ```bash
-   gh issue edit <number> --remove-label "status: ready" --add-label "status: in-progress"
-   ```
-
-3. **When PR is created:** Change label to `status: pr-open`
-   ```bash
-   gh issue edit <number> --remove-label "status: in-progress" --add-label "status: pr-open"
-   ```
-
-4. **When PR is merged:** Change label to `status: done`
-   ```bash
-   gh issue edit <number> --remove-label "status: pr-open" --add-label "status: done"
-   ```
+**Agent responsibilities (agents do this themselves):**
+3. **When starting work:** Agent sets `status: in-progress`
+4. **When PR is created:** Agent sets `status: pr-open`
+5. **When PR is merged:** Label `status: done` (usually automatic via "Fixes #X")
 
 ## Step-by-Step Process
 
@@ -254,21 +252,17 @@ gh issue view 11
 gh issue view 12
 gh issue view 13
 
-# 3. Mark selected issues as in-progress
-gh issue edit 11 --remove-label "status: ready" --add-label "status: in-progress"
-gh issue edit 12 --remove-label "status: ready" --add-label "status: in-progress"
-gh issue edit 13 --remove-label "status: ready" --add-label "status: in-progress"
-
-# 4. Create tmux session with split panes
+# 3. Create tmux session with split panes
+# (Agents will update labels themselves when they start working)
 tmux new-session -d -s agents -c /home/mfranc/Work/claude-from-obsidian
 tmux split-window -h -t agents -c /home/mfranc/Work/claude-from-obsidian
 tmux split-window -v -t agents -c /home/mfranc/Work/claude-from-obsidian
 tmux select-layout -t agents tiled
 
-# 5. Open on workspace 5 (claude-agents)
+# 4. Open on workspace 5 (claude-agents)
 i3-msg 'workspace "5: claude-agents"; exec alacritty -e tmux attach -t agents'
 
-# 6. Spawn agents in each pane
+# 5. Spawn agents in each pane
 tmux send-keys -t agents:0.0 'claude "Read AGENT_ISSUES.md and work on Issue #11. Follow the workflow exactly."' Enter
 tmux send-keys -t agents:0.1 'claude "Read AGENT_ISSUES.md and work on Issue #12. Follow the workflow exactly."' Enter
 tmux send-keys -t agents:0.2 'claude "Read AGENT_ISSUES.md and work on Issue #13. Follow the workflow exactly."' Enter
@@ -277,13 +271,9 @@ tmux send-keys -t agents:0.2 'claude "Read AGENT_ISSUES.md and work on Issue #13
 # While watching: Ctrl+B, z to zoom a pane
 # While watching: Ctrl+B, d to detach (agents keep running)
 
-# 7. Check for PRs and update labels
+# 6. Monitor progress - agents update labels themselves
 gh pr list --state open
-
-# When PRs are created, update labels:
-gh issue edit 11 --remove-label "status: in-progress" --add-label "status: pr-open"
-gh issue edit 12 --remove-label "status: in-progress" --add-label "status: pr-open"
-gh issue edit 13 --remove-label "status: in-progress" --add-label "status: pr-open"
+gh issue list --state open  # Check label changes
 ```
 
 ## Handling Conflicts

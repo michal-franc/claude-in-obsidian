@@ -25,8 +25,8 @@ If you were given an issue number, skip to Step 1 and use that issue. Otherwise,
 ### Step 1: Read and Analyze Issue
 
 ```bash
-# List open issues
-gh issue list --state open
+# List open issues (prefer ones labeled "status: ready")
+gh issue list --state open --label "status: ready"
 
 # Read specific issue
 gh issue view <issue-number>
@@ -36,6 +36,11 @@ Analyze the issue:
 - Understand the reported problem
 - Identify affected files and code locations
 - Determine if it's reproducible via automated test
+
+**Mark issue as in-progress (YOU must do this):**
+```bash
+gh issue edit <number> --remove-label "status: ready" --add-label "status: in-progress"
+```
 
 ### Step 2: Create Worktree and Branch
 
@@ -205,14 +210,19 @@ EOF
 
 After PR is created:
 
-1. Link PR in issue comment:
+1. **Update issue label to pr-open (YOU must do this):**
+   ```bash
+   gh issue edit <number> --remove-label "status: in-progress" --add-label "status: pr-open"
+   ```
+
+2. Link PR in issue comment:
    ```bash
    gh issue comment <number> --body "Fix submitted in PR #<pr-number>"
    ```
 
-2. If PR is merged, verify issue auto-closes (due to "Fixes #X")
+3. If PR is merged, verify issue auto-closes (due to "Fixes #X")
 
-3. If PR needs changes, address review comments and update
+4. If PR needs changes, address review comments and update
 
 ### Step 8: Cleanup Worktree
 
@@ -309,7 +319,18 @@ gh pr view <number>
 
 ## Labels to Use
 
-When commenting, suggest labels if appropriate:
+### Status Labels (YOU must update these)
+
+| Label | When to Set |
+|-------|-------------|
+| `status: ready` | Issue is ready to work on (set by manager or initially) |
+| `status: in-progress` | **Set this in Step 1** when you start working |
+| `status: pr-open` | **Set this in Step 7** after creating PR |
+| `status: done` | Set when PR is merged (usually automatic) |
+
+### Category Labels
+
+When commenting, suggest category labels if appropriate:
 - `bug` - Confirmed bugs
 - `enhancement` - Feature requests
 - `memory-leak` - Memory/resource leaks
@@ -319,10 +340,11 @@ When commenting, suggest labels if appropriate:
 
 ## Important Notes
 
-1. **Always write the test first** - This proves the issue exists
-2. **Minimal fixes only** - Don't refactor unrelated code
-3. **Reference the issue** - Use "Fixes #X" in commit/PR to auto-close
-4. **Run full test suite** - Ensure no regressions before PR
-5. **Always communicate** - Comment on issue whether confirmed or not
-6. **Clean up after commenting** - Delete worktrees for unconfirmed issues only AFTER leaving a comment explaining why
-7. **Use worktrees** - Always work in a worktree to avoid conflicts with other agents
+1. **Update labels yourself** - Set `status: in-progress` when starting, `status: pr-open` after PR
+2. **Always write the test first** - This proves the issue exists
+3. **Minimal fixes only** - Don't refactor unrelated code
+4. **Reference the issue** - Use "Fixes #X" in commit/PR to auto-close
+5. **Run full test suite** - Ensure no regressions before PR
+6. **Always communicate** - Comment on issue whether confirmed or not
+7. **Clean up after commenting** - Delete worktrees for unconfirmed issues only AFTER leaving a comment explaining why
+8. **Use worktrees** - Always work in a worktree to avoid conflicts with other agents
