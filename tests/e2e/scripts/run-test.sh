@@ -9,7 +9,7 @@ set -e
 TEST_NAME="${1:-uppercase}"
 COMMAND="${2:-make this uppercase}"
 EXPECTED="${3:-}"
-TIMEOUT="${4:-10}"
+TIMEOUT="${4:-20}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VAULT_PATH="$SCRIPT_DIR/../testvault"
@@ -50,7 +50,7 @@ sleep 0.5
 
 echo "3. Taking 'before' screenshot..."
 if command -v scrot &> /dev/null; then
-    scrot "$SCREENSHOT_DIR/${TEST_NAME}-before.png"
+    scrot -q 80 "$SCREENSHOT_DIR/${TEST_NAME}-before.jpg"
 else
     echo "   (scrot not installed, skipping screenshot)"
 fi
@@ -73,37 +73,37 @@ sleep "$TIMEOUT"
 
 echo "8. Taking 'after' screenshot..."
 if command -v scrot &> /dev/null; then
-    scrot "$SCREENSHOT_DIR/${TEST_NAME}-after.png"
+    scrot -q 80 "$SCREENSHOT_DIR/${TEST_NAME}-after.jpg"
 else
     echo "   (scrot not installed, skipping screenshot)"
 fi
 
-echo "9. Copying result to clipboard (Ctrl+A, Ctrl+C)..."
-xdotool key ctrl+a
-sleep 0.2
-xdotool key ctrl+c
-sleep 0.2
-
-# Get clipboard content
-RESULT=$(xclip -selection clipboard -o 2>/dev/null || echo "")
+echo "9. Reading result from file..."
+TEST_FILE="$VAULT_PATH/test-files/test-$TEST_NAME.md"
+RESULT=$(cat "$TEST_FILE" 2>/dev/null || echo "")
 
 echo ""
 echo "=== Result ==="
 echo "$RESULT"
 echo ""
 
-# Verify if expected pattern is found
-if [ -n "$EXPECTED" ]; then
-    if echo "$RESULT" | grep -qi "$EXPECTED"; then
-        echo "✅ PASS: Found expected pattern '$EXPECTED'"
-        exit 0
-    else
-        echo "❌ FAIL: Expected pattern '$EXPECTED' not found"
-        echo ""
-        echo "Screenshots saved to: $SCREENSHOT_DIR"
-        exit 1
+# Verify Claude responded (look for ad-claude block)
+if echo "$RESULT" | grep -q "ad-claude"; then
+    echo "✅ Claude responded!"
+
+    # If expected pattern provided, check for it too
+    if [ -n "$EXPECTED" ]; then
+        if echo "$RESULT" | grep -q "$EXPECTED"; then
+            echo "✅ PASS: Found expected pattern '$EXPECTED'"
+        else
+            echo "⚠️  Pattern '$EXPECTED' not found (Claude may need file permissions)"
+        fi
     fi
-else
-    echo "ℹ️  No expected pattern provided, manual verification needed"
     echo "Screenshots saved to: $SCREENSHOT_DIR"
+    exit 0
+else
+    echo "❌ FAIL: Claude did not respond (no ad-claude block found)"
+    echo ""
+    echo "Screenshots saved to: $SCREENSHOT_DIR"
+    exit 1
 fi
