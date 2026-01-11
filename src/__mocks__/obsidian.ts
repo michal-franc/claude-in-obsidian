@@ -34,3 +34,50 @@ export class App {
 		},
 	};
 }
+
+export class Plugin {
+	app: App;
+
+	constructor(app: App) {
+		this.app = app;
+	}
+
+	addStatusBarItem(): HTMLElement {
+		const el = document.createElement('div');
+		document.body.appendChild(el);
+		return el;
+	}
+}
+
+export class Modal {
+	app: App;
+	contentEl: HTMLElement;
+	containerEl: HTMLElement;
+
+	constructor(app: App) {
+		this.app = app;
+		this.containerEl = document.createElement('div');
+		this.contentEl = document.createElement('div');
+		this.containerEl.appendChild(this.contentEl);
+	}
+
+	open(): void {
+		document.body.appendChild(this.containerEl);
+		this.onOpen();
+	}
+
+	close(): void {
+		this.onClose();
+		if (this.containerEl.parentNode) {
+			this.containerEl.parentNode.removeChild(this.containerEl);
+		}
+	}
+
+	onOpen(): void {
+		// Override in subclass
+	}
+
+	onClose(): void {
+		// Override in subclass
+	}
+}

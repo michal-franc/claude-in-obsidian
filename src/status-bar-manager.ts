@@ -158,10 +158,11 @@ export class StatusBarManager {
 /**
  * Modal shown when response couldn't be auto-injected
  */
-class OrphanedResponseModal extends Modal {
+export class OrphanedResponseModal extends Modal {
 	private response: string;
 	private originalCommand?: string;
 	private onDismiss: () => void;
+	private buttonHandlers: Map<HTMLElement, EventListener> = new Map();
 
 	constructor(app: App, response: string, originalCommand: string | undefined, onDismiss: () => void) {
 		super(app);
@@ -191,7 +192,7 @@ class OrphanedResponseModal extends Modal {
 		}
 
 		contentEl.createEl('h4', { text: 'Response:' });
-		const responseEl = contentEl.createEl('pre', {
+		contentEl.createEl('pre', {
 			text: this.response,
 			cls: 'claude-orphaned-response',
 		});
@@ -200,19 +201,29 @@ class OrphanedResponseModal extends Modal {
 		const buttonContainer = contentEl.createDiv({ cls: 'claude-orphaned-buttons' });
 
 		const copyBtn = buttonContainer.createEl('button', { text: 'Copy to Clipboard' });
-		copyBtn.addEventListener('click', async () => {
+		const copyHandler = async () => {
 			await navigator.clipboard.writeText(this.response);
 			copyBtn.setText('Copied!');
 			setTimeout(() => copyBtn.setText('Copy to Clipboard'), 2000);
-		});
+		};
+		copyBtn.addEventListener('click', copyHandler);
+		this.buttonHandlers.set(copyBtn, copyHandler);
 
 		const dismissBtn = buttonContainer.createEl('button', { text: 'Dismiss' });
-		dismissBtn.addEventListener('click', () => {
+		const dismissHandler = () => {
 			this.close();
-		});
+		};
+		dismissBtn.addEventListener('click', dismissHandler);
+		this.buttonHandlers.set(dismissBtn, dismissHandler);
 	}
 
 	onClose(): void {
+		// Clean up button event listeners to prevent memory leaks
+		this.buttonHandlers.forEach((handler, button) => {
+			button.removeEventListener('click', handler);
+		});
+		this.buttonHandlers.clear();
+
 		this.onDismiss();
 		const { contentEl } = this;
 		contentEl.empty();
@@ -222,7 +233,10 @@ class OrphanedResponseModal extends Modal {
 /**
  * Modal showing processing details
  */
-class ProcessingDetailsModal extends Modal {
+export class ProcessingDetailsModal extends Modal {
+	private closeBtn: HTMLElement | null = null;
+	private closeHandler: (() => void) | null = null;
+
 	constructor(app: App) {
 		super(app);
 	}
@@ -235,11 +249,19 @@ class ProcessingDetailsModal extends Modal {
 		contentEl.createEl('p', { text: 'Claude is currently processing your request...' });
 		contentEl.createEl('p', { text: 'You can continue working. The response will appear in your document when ready.' });
 
-		const closeBtn = contentEl.createEl('button', { text: 'Close' });
-		closeBtn.addEventListener('click', () => this.close());
+		this.closeBtn = contentEl.createEl('button', { text: 'Close' });
+		this.closeHandler = () => this.close();
+		this.closeBtn.addEventListener('click', this.closeHandler);
 	}
 
 	onClose(): void {
+		// Clean up button event listener to prevent memory leaks
+		if (this.closeBtn && this.closeHandler) {
+			this.closeBtn.removeEventListener('click', this.closeHandler);
+		}
+		this.closeBtn = null;
+		this.closeHandler = null;
+
 		const { contentEl } = this;
 		contentEl.empty();
 	}
