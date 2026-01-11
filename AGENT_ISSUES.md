@@ -2,14 +2,22 @@
 
 You are an agent responsible for triaging, verifying, and fixing GitHub issues for this repository.
 
+## Getting Started
+
+You may either:
+1. **Be assigned an issue** - If spawned by a manager agent, you will be given a specific issue number to work on
+2. **Pick an issue yourself** - If working independently, pick an open issue from `gh issue list --state open`
+
+If you were given an issue number, skip to Step 1 and use that issue. Otherwise, pick one yourself.
+
 ## Workflow Overview
 
 ```
-1. Read Issue → 2. Create Branch → 3. Write Verification Test → 4. Comment on Issue
-                                            ↓
-         6. Create PR ← 5. Implement Fix (if confirmed)
-                                            ↓
-                              7. Cleanup (if not confirmed)
+1. Read Issue → 2. Create Worktree & Branch → 3. Write Verification Test → 4. Comment on Issue
+                                                          ↓
+              7. Create PR ← 6. Run Tests ← 5. Implement Fix (if confirmed)
+                    ↓
+              8. Cleanup Worktree
 ```
 
 ## Step-by-Step Process
@@ -29,13 +37,31 @@ Analyze the issue:
 - Identify affected files and code locations
 - Determine if it's reproducible via automated test
 
-### Step 2: Create Branch
+### Step 2: Create Worktree and Branch
+
+**Important:** Use git worktrees to avoid conflicts with other agents working in parallel.
 
 ```bash
-git checkout master
-git pull origin master
-git checkout -b fix/issue-<number>-<short-description>
+# From the main repo directory
+cd /home/mfranc/Work/claude-from-obsidian
+
+# Ensure master is up to date
+git fetch origin master
+
+# Create a worktree for this issue (creates both worktree and branch)
+git worktree add ../claude-from-obsidian-issue-<number> -b fix/issue-<number>-<short-description> origin/master
+
+# Move into the worktree
+cd ../claude-from-obsidian-issue-<number>
+
+# Install dependencies in the worktree
+npm install
 ```
+
+This creates:
+- A new directory `../claude-from-obsidian-issue-<number>`
+- A new branch `fix/issue-<number>-<short-description>` based on origin/master
+- Complete isolation from other agents
 
 Branch naming:
 - Bugs: `fix/issue-<number>-<description>`
@@ -86,7 +112,7 @@ EOF
 
 #### If Issue Cannot be Confirmed:
 
-**IMPORTANT: Always comment on the issue BEFORE cleaning up the branch.**
+**IMPORTANT: Always comment on the issue BEFORE cleaning up the worktree.**
 
 ```bash
 gh issue comment <number> --body "$(cat <<'EOF'
@@ -108,9 +134,15 @@ EOF
 )"
 ```
 
-Then cleanup the branch:
+Then cleanup the worktree and branch:
 ```bash
-git checkout master
+# Go back to main repo
+cd /home/mfranc/Work/claude-from-obsidian
+
+# Remove the worktree
+git worktree remove ../claude-from-obsidian-issue-<number>
+
+# Delete the branch
 git branch -D fix/issue-<number>-<description>
 ```
 
@@ -182,6 +214,25 @@ After PR is created:
 
 3. If PR needs changes, address review comments and update
 
+### Step 8: Cleanup Worktree
+
+After PR is merged (or abandoned), clean up the worktree:
+
+```bash
+# Go back to main repo
+cd /home/mfranc/Work/claude-from-obsidian
+
+# Remove the worktree
+git worktree remove ../claude-from-obsidian-issue-<number>
+
+# If branch was merged, it's already deleted on remote
+# Delete local branch if it still exists
+git branch -D fix/issue-<number>-<description> 2>/dev/null || true
+
+# Prune any stale worktree references
+git worktree prune
+```
+
 ## Test Writing Guidelines
 
 ### For Memory Leaks (Event Listeners)
@@ -236,6 +287,12 @@ gh issue list --state open
 gh issue view <number>
 gh issue comment <number> --body "message"
 
+# Worktrees
+git worktree add <path> -b <branch> origin/master
+git worktree remove <path>
+git worktree list
+git worktree prune
+
 # Branches
 git checkout -b fix/issue-<number>-<desc>
 git branch -D <branch>  # delete local
@@ -267,4 +324,5 @@ When commenting, suggest labels if appropriate:
 3. **Reference the issue** - Use "Fixes #X" in commit/PR to auto-close
 4. **Run full test suite** - Ensure no regressions before PR
 5. **Always communicate** - Comment on issue whether confirmed or not
-6. **Clean up after commenting** - Delete branches for unconfirmed issues only AFTER leaving a comment explaining why
+6. **Clean up after commenting** - Delete worktrees for unconfirmed issues only AFTER leaving a comment explaining why
+7. **Use worktrees** - Always work in a worktree to avoid conflicts with other agents
