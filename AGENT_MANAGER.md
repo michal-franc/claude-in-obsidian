@@ -19,8 +19,52 @@ This prevents file conflicts and allows parallel work on different branches.
 ## Workflow Overview
 
 ```
-1. List Issues → 2. Analyze & Select 3 → 3. Create Tmux Sessions → 4. Spawn Agents → 5. Monitor Progress
+1. List Issues → 2. Analyze & Select 3 → 3. Label Issues → 4. Create Tmux Sessions → 5. Spawn Agents → 6. Monitor & Update Labels
 ```
+
+## Issue Labels
+
+Use labels to track issue status and prevent agents from picking up work already in progress.
+
+### Available Labels
+
+| Label | Description | Color |
+|-------|-------------|-------|
+| `status: ready` | Ready to be worked on | Green |
+| `status: in-progress` | Agent is working on this | Yellow |
+| `status: pr-open` | PR submitted, awaiting review | Blue |
+| `status: done` | PR merged, issue resolved | Purple |
+
+### Create Labels (First Time Setup)
+
+```bash
+gh label create "status: ready" --description "Ready to be worked on" --color "0E8A16"
+gh label create "status: in-progress" --description "Agent is working on this" --color "FBCA04"
+gh label create "status: pr-open" --description "PR submitted, awaiting review" --color "1D76DB"
+gh label create "status: done" --description "PR merged, issue resolved" --color "5319E7"
+```
+
+### Label Workflow
+
+1. **Before assigning work:** Check for issues with `status: ready`
+   ```bash
+   gh issue list --state open --label "status: ready"
+   ```
+
+2. **When assigning to agent:** Change label to `status: in-progress`
+   ```bash
+   gh issue edit <number> --remove-label "status: ready" --add-label "status: in-progress"
+   ```
+
+3. **When PR is created:** Change label to `status: pr-open`
+   ```bash
+   gh issue edit <number> --remove-label "status: in-progress" --add-label "status: pr-open"
+   ```
+
+4. **When PR is merged:** Change label to `status: done`
+   ```bash
+   gh issue edit <number> --remove-label "status: pr-open" --add-label "status: done"
+   ```
 
 ## Step-by-Step Process
 
@@ -202,24 +246,29 @@ gh pr view <number>
 # 0. Ensure no existing session (clean slate)
 tmux kill-session -t agents 2>/dev/null || true
 
-# 1. List issues
-gh issue list --state open
+# 1. List issues that are ready to work on
+gh issue list --state open --label "status: ready"
 
 # 2. Review candidates (example: issues 11, 12, 13)
 gh issue view 11
 gh issue view 12
 gh issue view 13
 
-# 3. Create tmux session with split panes
+# 3. Mark selected issues as in-progress
+gh issue edit 11 --remove-label "status: ready" --add-label "status: in-progress"
+gh issue edit 12 --remove-label "status: ready" --add-label "status: in-progress"
+gh issue edit 13 --remove-label "status: ready" --add-label "status: in-progress"
+
+# 4. Create tmux session with split panes
 tmux new-session -d -s agents -c /home/mfranc/Work/claude-from-obsidian
 tmux split-window -h -t agents -c /home/mfranc/Work/claude-from-obsidian
 tmux split-window -v -t agents -c /home/mfranc/Work/claude-from-obsidian
 tmux select-layout -t agents tiled
 
-# 4. Open on workspace 5 (claude-agents)
+# 5. Open on workspace 5 (claude-agents)
 i3-msg 'workspace "5: claude-agents"; exec alacritty -e tmux attach -t agents'
 
-# 5. Spawn agents in each pane
+# 6. Spawn agents in each pane
 tmux send-keys -t agents:0.0 'claude "Read AGENT_ISSUES.md and work on Issue #11. Follow the workflow exactly."' Enter
 tmux send-keys -t agents:0.1 'claude "Read AGENT_ISSUES.md and work on Issue #12. Follow the workflow exactly."' Enter
 tmux send-keys -t agents:0.2 'claude "Read AGENT_ISSUES.md and work on Issue #13. Follow the workflow exactly."' Enter
@@ -228,8 +277,13 @@ tmux send-keys -t agents:0.2 'claude "Read AGENT_ISSUES.md and work on Issue #13
 # While watching: Ctrl+B, z to zoom a pane
 # While watching: Ctrl+B, d to detach (agents keep running)
 
-# 6. Check for PRs
+# 7. Check for PRs and update labels
 gh pr list --state open
+
+# When PRs are created, update labels:
+gh issue edit 11 --remove-label "status: in-progress" --add-label "status: pr-open"
+gh issue edit 12 --remove-label "status: in-progress" --add-label "status: pr-open"
+gh issue edit 13 --remove-label "status: in-progress" --add-label "status: pr-open"
 ```
 
 ## Handling Conflicts
