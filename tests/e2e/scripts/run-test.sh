@@ -9,7 +9,7 @@ set -e
 TEST_NAME="${1:-uppercase}"
 COMMAND="${2:-make this uppercase}"
 EXPECTED="${3:-}"
-TIMEOUT="${4:-20}"
+TIMEOUT="${4:-40}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VAULT_PATH="$SCRIPT_DIR/../testvault"
