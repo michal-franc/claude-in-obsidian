@@ -16,6 +16,7 @@ export class ClaudeProcess {
 	private envVars: Record<string, string>;
 	private commandTimeout: number = 30000; // 30 seconds
 	private isActive: boolean = true;
+	private currentTimeoutId: NodeJS.Timeout | null = null;
 
 	constructor(options: ClaudeProcessOptions, timeout?: number) {
 		this.sessionId = options.sessionId;
@@ -71,8 +72,9 @@ export class ClaudeProcess {
 			let stderr = '';
 
 			// Set up timeout
-			const timeoutId = setTimeout(() => {
+			this.currentTimeoutId = setTimeout(() => {
 				logger.error(`[Session ${this.sessionId}] Command timeout after ${this.commandTimeout}ms`);
+				this.currentTimeoutId = null;
 				claudeProcess.kill('SIGKILL');
 				reject(new Error('Command timeout'));
 			}, this.commandTimeout);
@@ -93,7 +95,10 @@ export class ClaudeProcess {
 
 			// Handle process exit
 			claudeProcess.on('exit', (code: number | null) => {
-				clearTimeout(timeoutId);
+				if (this.currentTimeoutId) {
+					clearTimeout(this.currentTimeoutId);
+					this.currentTimeoutId = null;
+				}
 				logger.info(`[Session ${this.sessionId}] Process exited with code:`, code);
 
 				if (code === 0 && stdout.length > 0) {
@@ -115,7 +120,10 @@ export class ClaudeProcess {
 
 			// Handle spawn errors
 			claudeProcess.on('error', (error: Error) => {
-				clearTimeout(timeoutId);
+				if (this.currentTimeoutId) {
+					clearTimeout(this.currentTimeoutId);
+					this.currentTimeoutId = null;
+				}
 				logger.error(`[Session ${this.sessionId}] Spawn error:`, error.message);
 				reject(new Error(`Failed to spawn Claude: ${error.message}`));
 			});
@@ -127,7 +135,10 @@ export class ClaudeProcess {
 				claudeProcess.stdin!.end();
 				logger.debug(`[Session ${this.sessionId}] Input sent, stdin closed`);
 			} catch (error) {
-				clearTimeout(timeoutId);
+				if (this.currentTimeoutId) {
+					clearTimeout(this.currentTimeoutId);
+					this.currentTimeoutId = null;
+				}
 				logger.error(`[Session ${this.sessionId}] Error writing to stdin:`, error);
 				claudeProcess.kill('SIGKILL');
 				reject(error);
@@ -141,7 +152,12 @@ export class ClaudeProcess {
 	async stop(): Promise<void> {
 		logger.info(`[Session ${this.sessionId}] Stopping session...`);
 		this.isActive = false;
-		// No long-running process to kill
+		// Clear any pending command timeout
+		if (this.currentTimeoutId) {
+			clearTimeout(this.currentTimeoutId);
+			this.currentTimeoutId = null;
+			logger.debug(`[Session ${this.sessionId}] Cleared pending command timeout`);
+		}
 		logger.info(`[Session ${this.sessionId}] Session stopped`);
 	}
 
