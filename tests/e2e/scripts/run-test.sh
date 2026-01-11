@@ -50,7 +50,7 @@ sleep 0.5
 
 echo "3. Taking 'before' screenshot..."
 if command -v scrot &> /dev/null; then
-    scrot -q 80 "$SCREENSHOT_DIR/${TEST_NAME}-before.jpg"
+    scrot -u -q 80 "$SCREENSHOT_DIR/${TEST_NAME}-before.jpg"
 else
     echo "   (scrot not installed, skipping screenshot)"
 fi
@@ -73,7 +73,7 @@ sleep "$TIMEOUT"
 
 echo "8. Taking 'after' screenshot..."
 if command -v scrot &> /dev/null; then
-    scrot -q 80 "$SCREENSHOT_DIR/${TEST_NAME}-after.jpg"
+    scrot -u -q 80 "$SCREENSHOT_DIR/${TEST_NAME}-after.jpg"
 else
     echo "   (scrot not installed, skipping screenshot)"
 fi
