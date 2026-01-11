@@ -25,6 +25,7 @@ export class StatusBarManager {
 	private plugin: Plugin;
 	private app: App;
 	private currentInfo: StatusBarInfo = { state: 'idle' };
+	private clickHandler: (() => void) | null = null;
 
 	constructor(plugin: Plugin, app: App) {
 		this.plugin = plugin;
@@ -38,7 +39,8 @@ export class StatusBarManager {
 		logger.info('[StatusBarManager] Initializing status bar...');
 		this.statusBarEl = this.plugin.addStatusBarItem();
 		this.statusBarEl.addClass('claude-status-bar');
-		this.statusBarEl.addEventListener('click', () => this.handleClick());
+		this.clickHandler = () => this.handleClick();
+		this.statusBarEl.addEventListener('click', this.clickHandler);
 		this.render();
 		logger.info('[StatusBarManager] Status bar initialized');
 	}
@@ -149,6 +151,10 @@ export class StatusBarManager {
 	 */
 	destroy(): void {
 		if (this.statusBarEl) {
+			if (this.clickHandler) {
+				this.statusBarEl.removeEventListener('click', this.clickHandler);
+				this.clickHandler = null;
+			}
 			this.statusBarEl.remove();
 			this.statusBarEl = null;
 		}
