@@ -186,9 +186,12 @@ export class ClaudeProcess {
 	/**
 	 * Build the prompt with file path (Feature 007)
 	 * Format:
-	 * You are helping edit a file in Obsidian.
+	 * You are an assistant helping a user in Obsidian.
+	 * IMPORTANT: Only respond with text. Do NOT write to or modify any files.
+	 * Your response will be inserted into the document by the plugin.
+	 * You may read the file "{{filepath}}" for context if needed.
 	 *
-	 * File: {{filepath}}
+	 * File being edited: {{filepath}}
 	 *
 	 * Selected text: {{selection or "none"}}
 	 *
@@ -197,13 +200,18 @@ export class ClaudeProcess {
 	private buildPrompt(command: string, selectedText?: string, filePath?: string): string {
 		const parts: string[] = [];
 
-		// System context
-		parts.push('You are helping edit a file in Obsidian.');
+		// System context - be explicit about output expectations
+		parts.push('You are an assistant helping a user in Obsidian.');
+		parts.push('IMPORTANT: Only respond with text. Do NOT write to or modify any files.');
+		parts.push('Your response will be inserted into the document by the plugin.');
+		if (filePath) {
+			parts.push(`You may read the file "${filePath}" for context if needed.`);
+		}
 		parts.push('');
 
-		// File path if available
+		// File path if available (for context only)
 		if (filePath) {
-			parts.push(`File: ${filePath}`);
+			parts.push(`File being edited: ${filePath}`);
 			parts.push('');
 		}
 
