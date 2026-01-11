@@ -1,0 +1,363 @@
+/* Claude from Obsidian Plugin Styles */
+
+/* Session Selector Modal */
+.claude-session-item {
+	padding: 12px;
+	margin: 8px 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.claude-session-item.clickable:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.claude-session-info {
+	margin-left: 24px;
+}
+
+.claude-session-name {
+	font-weight: 600;
+	font-size: 1.1em;
+	margin-bottom: 4px;
+}
+
+.claude-session-dir {
+	color: var(--text-muted);
+	font-size: 0.9em;
+	margin-bottom: 4px;
+}
+
+.claude-session-time {
+	color: var(--text-faint);
+	font-size: 0.85em;
+}
+
+.claude-status-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 4px;
+	font-size: 0.85em;
+	font-weight: 500;
+}
+
+.claude-status-active {
+	color: var(--text-success);
+}
+
+.claude-status-stopped {
+	color: var(--text-muted);
+}
+
+.claude-status-crashed {
+	color: var(--text-error);
+}
+
+.claude-no-sessions {
+	color: var(--text-muted);
+	font-style: italic;
+	text-align: center;
+	padding: 20px;
+}
+
+/* Command Input Modal */
+.claude-command-section {
+	margin: 16px 0;
+}
+
+.claude-command-section h3 {
+	margin-bottom: 8px;
+}
+
+.claude-context-display {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 12px;
+	max-height: 200px;
+	overflow-y: auto;
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	white-space: pre-wrap;
+	margin-bottom: 12px;
+}
+
+.claude-command-input {
+	width: 100%;
+	min-height: 100px;
+	font-family: var(--font-text);
+	resize: vertical;
+}
+
+/* Response Modal */
+.claude-response-loading {
+	text-align: center;
+	padding: 40px;
+}
+
+.claude-response-spinner {
+	display: inline-block;
+	width: 40px;
+	height: 40px;
+	border: 4px solid var(--background-modifier-border);
+	border-top-color: var(--interactive-accent);
+	border-radius: 50%;
+	animation: claude-spin 1s linear infinite;
+}
+
+@keyframes claude-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.claude-response-content {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 16px;
+	max-height: 400px;
+	overflow-y: auto;
+	margin: 16px 0;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+.claude-response-error {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--text-error);
+	border-radius: 4px;
+	padding: 16px;
+	margin: 16px 0;
+	color: var(--text-error);
+}
+
+.claude-response-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 16px;
+}
+
+/* Session header */
+.claude-session-header {
+	background-color: var(--background-secondary);
+	padding: 8px 12px;
+	border-radius: 4px;
+	margin-bottom: 16px;
+	font-weight: 500;
+}
+
+/* Status Bar */
+.claude-status-bar {
+	cursor: pointer;
+	padding: 0 8px;
+	border-radius: 4px;
+	transition: background-color 0.2s;
+}
+
+.claude-status-bar:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.claude-status-idle {
+	color: var(--text-muted);
+}
+
+.claude-status-processing {
+	color: var(--text-accent);
+}
+
+.claude-status-warning {
+	color: var(--text-warning, #e6a700);
+	font-weight: 500;
+}
+
+.claude-status-error {
+	color: var(--text-error);
+}
+
+/* Orphaned Response Modal */
+.claude-orphaned-response-modal {
+	max-width: 600px;
+}
+
+.claude-orphaned-explanation {
+	color: var(--text-muted);
+	margin-bottom: 16px;
+}
+
+.claude-orphaned-command {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 8px 12px;
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	max-height: 100px;
+	overflow-y: auto;
+	white-space: pre-wrap;
+}
+
+.claude-orphaned-response {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 12px;
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	max-height: 300px;
+	overflow-y: auto;
+	white-space: pre-wrap;
+}
+
+.claude-orphaned-buttons {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 16px;
+}
+
+/* Inline Prompt (Feature 004) */
+.claude-inline-prompt {
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	padding: 8px 12px;
+	min-width: 300px;
+	max-width: 500px;
+}
+
+.claude-inline-input-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.claude-inline-label {
+	color: var(--text-muted);
+	font-size: 0.9em;
+	white-space: nowrap;
+}
+
+.claude-inline-input {
+	flex: 1;
+	border: none;
+	background: transparent;
+	font-size: 1em;
+	color: var(--text-normal);
+	outline: none;
+	padding: 4px 0;
+}
+
+.claude-inline-input::placeholder {
+	color: var(--text-faint);
+}
+
+.claude-inline-hint {
+	color: var(--text-faint);
+	font-size: 0.85em;
+}
+
+.claude-inline-skills {
+	display: flex;
+	gap: 6px;
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.claude-skill-button {
+	padding: 4px 10px;
+	font-size: 0.85em;
+	border-radius: 4px;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.claude-skill-button:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* Processing Callout - Overlay Effect (uses native Obsidian callout) */
+.callout[data-callout="claude-processing"] {
+	position: relative;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--interactive-accent);
+	border-left: 4px solid var(--interactive-accent);
+	opacity: 0.7;
+	animation: claude-processing-pulse 2s ease-in-out infinite;
+}
+
+.callout[data-callout="claude-processing"]::before {
+	content: "Claude is processing...";
+	position: absolute;
+	top: 8px;
+	right: 12px;
+	font-size: 0.8em;
+	color: var(--interactive-accent);
+	font-weight: 500;
+}
+
+.callout[data-callout="claude-processing"]::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(
+		90deg,
+		transparent 0%,
+		rgba(var(--interactive-accent-rgb), 0.1) 50%,
+		transparent 100%
+	);
+	animation: claude-shimmer 2s ease-in-out infinite;
+	pointer-events: none;
+}
+
+@keyframes claude-processing-pulse {
+	0%, 100% {
+		opacity: 0.6;
+	}
+	50% {
+		opacity: 0.85;
+	}
+}
+
+@keyframes claude-shimmer {
+	0% {
+		transform: translateX(-100%);
+	}
+	100% {
+		transform: translateX(100%);
+	}
+}
+
+/* Response Admonition (uses Admonitions plugin format for clean text) */
+.admonition-claude {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-left: 4px solid var(--interactive-accent);
+}
+
+.admonition-claude .admonition-title {
+	color: var(--interactive-accent);
+}
+
+/* Error Admonition */
+.admonition-claude-error {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--text-error);
+	border-left: 4px solid var(--text-error);
+}
+
+.admonition-claude-error .admonition-title {
+	color: var(--text-error);
+}
