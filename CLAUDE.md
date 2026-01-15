@@ -1,158 +1,38 @@
-# Project Name
-This is a projejt of a obsidian plugin to enable communcation with claude shell from obsidian.
+# Claude from Obsidian
+Obsidian plugin to communicate with Claude shell - send commands from Obsidian to shell and receive responses directly.
 
-# Project Purpose
-To make it easier to send commands from obsidian to shell and responses from shell to obsidian directly.
-
-## Branch Naming
-Use descriptive branch names:
-- Features: `feature/short-description` (e.g., `feature/skills-buttons`)
-- Bugs: `fix/short-description` (e.g., `fix/callout-styling`)
-- Docs: `docs/short-description` (e.g., `docs/readme-update`)
-
-## Workflow
-
-### 1. Start Work - Create Branch
-```bash
-git checkout master
-git pull origin master
-git checkout -b feature/your-feature-name
-```
-
-### 2. During Work - Commit Regularly
-```bash
-git add -A
-git commit -m "Description of change"
-```
-
-### 3. Complete Work - Push & Create PR
-```bash
-# Push branch to GitHub
-git push -u origin feature/your-feature-name
-
-# Create Pull Request using GitHub CLI
-gh pr create --title "Feature: Short description" --body "## Summary
-- What was done
-
-## Test plan
-- How to test"
-```
-
-### 4. After PR Merged - Cleanup
-```bash
-git checkout master
-git pull origin master
-git branch -d feature/your-feature-name
-```
-
-## Important
-- Never push directly to master
-- Wait for PR approval before merging
+## Git Workflow
+- **Branches**: `feature/`, `fix/`, `docs/` prefixes (never commit to master)
+- **Always**: Create branch → Work → Push → Create PR → Wait for approval
 - Keep PRs focused on single features/fixes
 
-# Development Rules
+## Development Rules
 
-## CRITICAL: Always Present Plan Before Implementation
+### CRITICAL: Plan Before Implementation
+1. **STOP** - Don't code immediately
+2. **CREATE BRANCH** - `git checkout -b feature/name`
+3. **PLAN** - Create detailed plan, present to user
+4. **WAIT** - Get explicit approval before proceeding
+5. **IMPLEMENT** - Follow the plan
+6. **CREATE PR** - Push and create PR for review
 
-**STOP AND PRESENT A PLAN FIRST - DO NOT START CODING WITHOUT USER APPROVAL**
+Exception: Skip for trivial changes (typos, single-line fixes).
 
-**ALSO: Always use feature branches and PRs - see "Git & GitHub Workflow" section above!**
+### Before Committing
+1. `npm test` - verify tests pass
+2. `npm run build` - verify compilation
 
-When the user asks you to implement something, you MUST:
-1. **STOP** - Do not start writing code immediately
-2. **CREATE BRANCH** - `git checkout -b feature/name` (NEVER work on master)
-3. **ANALYZE** - Understand the full scope of the request
-4. **PLAN** - Create a detailed plan with approach options if applicable
-5. **PRESENT** - Show the plan to the user and ask for approval
-6. **WAIT** - Wait for explicit user approval before proceeding
-7. **IMPLEMENT** - Only after approval, proceed with implementation
-8. **CREATE PR** - Push branch and create PR for review
+### Testing Guidelines
+Write tests for: utility functions, business logic, algorithms, critical bug fixes.
+Skip tests for: simple getters, UI/modals, IPC integration, trivial code.
 
-This rule applies to:
-- Bug fixes
-- New features
-- Refactoring
-- Any code changes
+### Other Rules
+- Add logging for easier debugging
+- Split multi-feature requests into separate PRs
+- Read ISSUETRACKING.md for BEADS task framework
 
-Exception: You may skip planning for trivial tasks like typo fixes or single-line changes.
-
-## Unit Testing Guidelines
-
-**Write tests when they add value**
-
-Unit tests are important but not always necessary. Use your judgment:
-
-**DO write tests for:**
-- Pure utility functions (easy to test, high value)
-- Complex business logic
-- Data transformations
-- Algorithms and calculations
-- Critical bug fixes
-
-**DON'T write tests for:**
-- Simple getters/setters
-- UI/modal code (hard to test, low value)
-- IPC/system integration (needs real environment)
-- Prototype/exploratory code
-- Trivial pass-through functions
-
-**When you do write tests:**
-1. Run `npm test` before committing
-2. Include tests with your code commit
-3. Fix failing tests before proceeding
-
-We'll expand test coverage incrementally as the codebase matures.
-
-## Other Development Rules
-
-Always add logging to make it more easy for operator to test and run the plugin.
-
-Read ISSUETRACCKING.md before implementineg anything to familiarise youreslv with the BEADS framework to manage tasks.
-
-During planning prefer splitting work into features. So given asks for lets say adding logging and also new feature. Split this work into two features.
-
-After each phase:
-1. Run `npm test` to verify all tests pass
-2. Run `npm run build` to verify compilation
-3. Only then commit your changes
-
-## Feature Planning with ADR-style Documents
-
-**Use the `features/` folder to document and plan features before implementation.**
-
-### Structure
-Features are documented using ADR (Architecture Decision Record) style files:
-```
-features/
-  001-feature-name.md
-  002-another-feature.md
-  ...
-```
-
-### Feature Document Template
-Each feature file should include:
-1. **Title** - Clear feature name
-2. **Status** - Draft / Under Review / Approved / Implemented / Rejected
-3. **Context** - Why is this feature needed?
-4. **Decision** - What will be implemented?
-5. **Implementation Plan** - High-level approach
-6. **Consequences** - Trade-offs and implications
-
-### Workflow
-1. **Create** - Add a new numbered feature file in `features/`
-2. **Iterate** - Discuss and refine the feature document
-3. **Approve** - User marks status as "Approved"
-4. **Implement** - Only then proceed with implementation following the plan
-5. **Complete** - When feature is implemented:
-   - Update status to "Implemented (vX.X.X)"
-   - Move file to `features/implemented/`
-   - Update `features/README.md` index
+## Feature Planning
+Use ADR-style docs in `features/` folder. See `features/README.md` for template and workflow.
 
 ## Bug Tracking
-
-**Check `features/bugs.md` for known bugs and issues.**
-
-This file contains user-reported bugs with descriptions and proposed fixes. When starting work:
-1. Review `features/bugs.md` for any bugs that need attention
-2. Prioritize bugs over new features when they affect core functionality
-3. After fixing a bug, remove it from `bugs.md` or mark it as fixed
+Check `features/bugs.md` for known issues. Prioritize bugs over new features when they affect core functionality.
