@@ -4,25 +4,6 @@ This is a projejt of a obsidian plugin to enable communcation with claude shell 
 # Project Purpose
 To make it easier to send commands from obsidian to shell and responses from shell to obsidian directly.
 
-# Issue Tracking - IMPORTANT
-
-**ALWAYS use beads for tracking work. Read ISSUETRACKING.md for commands.**
-
-Before starting any work:
-1. `bd ready` - Check for existing issues to work on
-2. `bd create "title" -t bug|feature|task` - Create issue for new work
-3. `bd update <id> --status in_progress` - Mark as in progress
-
-After completing work:
-1. `bd close <id> --reason "Done"` - Close the issue
-2. `bd export -o .beads/issues.jsonl` - Export before committing
-
-This applies to ALL work: features, bugs, refactoring, etc.
-
-# Git & GitHub Workflow
-
-**All changes must go through Pull Requests for review.**
-
 ## Branch Naming
 Use descriptive branch names:
 - Features: `feature/short-description` (e.g., `feature/skills-buttons`)

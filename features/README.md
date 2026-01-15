@@ -26,6 +26,7 @@ Features under consideration:
 | # | Feature | Status |
 |---|---------|--------|
 | [002](002-orphaned-response-recovery.md) | Orphaned Response Recovery | Draft |
+| [008](008-persistent-session-chat.md) | Persistent Session with Direct Chat | Draft |
 
 ## Bug Tracking
 
