@@ -6,7 +6,8 @@ echo "=== Cleaning up e2e test environment ==="
 
 # Kill Obsidian
 echo "Closing Obsidian..."
-pkill -9 obsidian 2>/dev/null || true
+# Use -x for exact match to avoid killing scripts with 'obsidian' in path
+pkill -9 -x obsidian 2>/dev/null || true
 sleep 1
 
 # Remove test vault from Obsidian config

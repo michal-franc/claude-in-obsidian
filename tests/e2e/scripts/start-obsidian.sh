@@ -11,7 +11,8 @@ echo "Vault: $VAULT_PATH"
 
 # Kill any existing Obsidian instances
 echo "Closing existing Obsidian instances..."
-pkill -9 obsidian 2>/dev/null || true
+# Use -x for exact match to avoid killing scripts with 'obsidian' in path
+pkill -9 -x obsidian 2>/dev/null || true
 sleep 2
 
 # Deploy plugin first
@@ -40,7 +41,7 @@ for vid in config['vaults']:
 config['vaults'][vault_id] = {
     "path": test_vault_path,
     "ts": 1765047329770,
-    "open": False
+    "open": True
 }
 
 with open(config_path, 'w') as f:

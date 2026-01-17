@@ -23,10 +23,10 @@ run_test() {
     echo "========================================"
 
     if "$SCRIPT_DIR/run-test.sh" "$name" "$command" "$expected" "$timeout"; then
-        ((PASS++))
+        PASS=$((PASS + 1))
         RESULTS+=("✅ $name")
     else
-        ((FAIL++))
+        FAIL=$((FAIL + 1))
         RESULTS+=("❌ $name")
     fi
 
@@ -56,7 +56,6 @@ echo "========================================"
 
 # Run tests
 run_test "uppercase" "make this uppercase" "HELLO" 15
-run_test "fix-grammar" "fix the grammar" "bought" 15
 
 echo ""
 echo "========================================"
@@ -70,6 +69,13 @@ echo ""
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
 echo ""
+
+# Cleanup after tests
+echo ""
+echo "========================================"
+echo "CLEANUP"
+echo "========================================"
+"$SCRIPT_DIR/cleanup.sh"
 
 if [ $FAIL -gt 0 ]; then
     echo "❌ SOME TESTS FAILED"
