@@ -15,6 +15,23 @@ const ADMONITION_RESPONSE = 'claude';
 const ADMONITION_ERROR = 'claude-error';
 
 /**
+ * Configurable search bounds for finding callouts in documents.
+ * These can be adjusted if needed for different use cases.
+ */
+export interface SearchConfig {
+	/** Lines to search before expected position when looking for callout header */
+	searchLinesBefore: number;
+	/** Lines to search after expected position when looking for callout header */
+	searchLinesAfter: number;
+}
+
+/** Default search configuration */
+export const DEFAULT_SEARCH_CONFIG: SearchConfig = {
+	searchLinesBefore: 5,
+	searchLinesAfter: 20,
+};
+
+/**
  * Result of tag injection
  */
 export interface TagInjectionResult {
@@ -44,8 +61,12 @@ function toAdmonition(type: string, content: string): string {
  * Manages admonition injection and response replacement in documents
  */
 export class TagManager {
-	constructor() {
-		logger.info('[TagManager] Initialized');
+	/** Configurable search bounds for finding callouts */
+	readonly searchConfig: SearchConfig;
+
+	constructor(config?: Partial<SearchConfig>) {
+		this.searchConfig = { ...DEFAULT_SEARCH_CONFIG, ...config };
+		logger.info('[TagManager] Initialized with search config:', this.searchConfig);
 	}
 
 	/**
@@ -113,9 +134,9 @@ export class TagManager {
 		const docContent = editor.getValue();
 		const lines = docContent.split('\n');
 
-		// Search in a range around the expected position
-		const searchStartLine = Math.max(0, expectedStartPos.line - 5);
-		const searchEndLine = Math.min(lines.length, expectedStartPos.line + 20);
+		// Search in a range around the expected position (configurable bounds)
+		const searchStartLine = Math.max(0, expectedStartPos.line - this.searchConfig.searchLinesBefore);
+		const searchEndLine = Math.min(lines.length, expectedStartPos.line + this.searchConfig.searchLinesAfter);
 
 		// Find the opening callout line: > [!claude-processing]
 		const calloutHeader = `> [!${CALLOUT_PROCESSING}]`;
@@ -137,10 +158,13 @@ export class TagManager {
 		}
 
 		// Find the end of the callout (first line that doesn't start with ">")
+		// Note: No artificial limit - uses early exit when non-callout line is found
+		// This is efficient because callouts naturally terminate at first non-">" line
 		let closeLineNum = openLineNum;
-		for (let lineNum = openLineNum + 1; lineNum < Math.min(lines.length, openLineNum + 50); lineNum++) {
+		for (let lineNum = openLineNum + 1; lineNum < lines.length; lineNum++) {
 			const line = lines[lineNum];
 			// Callout continues as long as line starts with ">"
+			// Early exit ensures we don't scan unnecessary lines
 			if (!line.startsWith('>')) {
 				break;
 			}
