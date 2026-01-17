@@ -109,6 +109,29 @@ Settings → Claude from Obsidian:
 | Working Directory | Where Claude runs commands | `~` |
 | Command Timeout | Max wait time (seconds) | 30 |
 
+### Advanced Configuration
+
+For programmatic use, the `TagManager` class accepts an optional `SearchConfig` to customize callout search behavior:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| searchLinesBefore | Lines to search before expected position when finding callouts | 5 |
+| searchLinesAfter | Lines to search after expected position when finding callouts | 20 |
+
+**Example** (for plugin developers):
+```typescript
+import { TagManager, SearchConfig } from './tag-manager';
+
+const customConfig: Partial<SearchConfig> = {
+  searchLinesBefore: 10,
+  searchLinesAfter: 30
+};
+
+const tagManager = new TagManager(customConfig);
+```
+
+**Note**: Most users won't need to change these values. The defaults handle typical use cases, including long callouts (60+ lines tested).
+
 ## Troubleshooting
 
 ### "Failed to spawn Claude process"
