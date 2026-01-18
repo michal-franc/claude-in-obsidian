@@ -21,6 +21,7 @@ Exception: Skip for trivial changes (typos, single-line fixes).
 ### Before Committing
 1. `npm test` - verify tests pass
 2. `npm run build` - verify compilation
+3. If CLAUDE.md was changed: `context-doctor CLAUDE.md` - verify instructions quality
 
 ### Testing Guidelines
 Write tests for: utility functions, business logic, algorithms, critical bug fixes.
@@ -29,10 +30,9 @@ Skip tests for: simple getters, UI/modals, IPC integration, trivial code.
 ### Other Rules
 - Add logging for easier debugging
 - Split multi-feature requests into separate PRs
-- Read ISSUETRACKING.md for BEADS task framework
 
 ## Feature Planning
-Use ADR-style docs in `features/` folder. See `features/README.md` for template and workflow.
+Use GitHub issues with `enhancement` label. See `features/` folder for ADR-style specs of larger features.
 
 ## Bug Tracking
-Check `features/bugs.md` for known issues. Prioritize bugs over new features when they affect core functionality.
+Use GitHub issues with `bug` label.
