@@ -16,6 +16,7 @@ export class ClaudeProcess {
 	private envVars: Record<string, string>;
 	private commandTimeout: number = 30000; // 30 seconds
 	private isActive: boolean = true;
+	private currentProcess: ChildProcess | null = null; // Track running process to kill on stop
 
 	constructor(options: ClaudeProcessOptions, timeout?: number) {
 		this.sessionId = options.sessionId;
@@ -64,6 +65,9 @@ export class ClaudeProcess {
 				env: { ...process.env, ...this.envVars },
 			});
 
+			// Track the running process so we can kill it on stop()
+			this.currentProcess = claudeProcess;
+
 			const pid = claudeProcess.pid;
 			logger.info(`[Session ${this.sessionId}] Claude process spawned with PID:`, pid);
 
@@ -94,6 +98,7 @@ export class ClaudeProcess {
 			// Handle process exit
 			claudeProcess.on('exit', (code: number | null) => {
 				clearTimeout(timeoutId);
+				this.currentProcess = null; // Clear reference on exit
 				logger.info(`[Session ${this.sessionId}] Process exited with code:`, code);
 
 				if (code === 0 && stdout.length > 0) {
@@ -136,12 +141,19 @@ export class ClaudeProcess {
 	}
 
 	/**
-	 * Stop the session (mark as inactive)
+	 * Stop the session and kill any running process
 	 */
 	async stop(): Promise<void> {
 		logger.info(`[Session ${this.sessionId}] Stopping session...`);
 		this.isActive = false;
-		// No long-running process to kill
+
+		// Kill any currently running process
+		if (this.currentProcess) {
+			logger.info(`[Session ${this.sessionId}] Killing running process...`);
+			this.currentProcess.kill('SIGKILL');
+			this.currentProcess = null;
+		}
+
 		logger.info(`[Session ${this.sessionId}] Session stopped`);
 	}
 
@@ -160,10 +172,10 @@ export class ClaudeProcess {
 	}
 
 	/**
-	 * Get PID (always undefined as we don't maintain long-running process)
+	 * Get PID of currently running process (if any)
 	 */
 	getPid(): number | undefined {
-		return undefined;
+		return this.currentProcess?.pid;
 	}
 
 	/**
