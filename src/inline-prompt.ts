@@ -22,6 +22,7 @@ export class InlinePrompt {
 	private inputEl: HTMLInputElement | null = null;
 	private boundHandleKeydown: (e: KeyboardEvent) => void;
 	private boundHandleClickOutside: (e: MouseEvent) => void;
+	private skillButtonHandlers: Map<HTMLElement, (e: MouseEvent) => void> = new Map();
 
 	constructor(
 		app: App,
@@ -97,6 +98,12 @@ export class InlinePrompt {
 		}
 		// Remove listener from the correct document
 		this.getOwnerDocument().removeEventListener('mousedown', this.boundHandleClickOutside);
+
+		// Clean up skill button click handlers to prevent memory leaks
+		this.skillButtonHandlers.forEach((handler, button) => {
+			button.removeEventListener('click', handler);
+		});
+		this.skillButtonHandlers.clear();
 
 		if (this.containerEl && this.containerEl.parentNode) {
 			this.containerEl.parentNode.removeChild(this.containerEl);
@@ -247,6 +254,9 @@ export class InlinePrompt {
 		// Clear existing buttons
 		skillsRow.empty();
 
+		// Clear any existing handlers before adding new buttons
+		this.skillButtonHandlers.clear();
+
 		// Add skill buttons (already limited to MAX_SKILLS by SkillManager)
 		for (const skill of skills) {
 			const btn = skillsRow.createEl('button', {
@@ -254,7 +264,9 @@ export class InlinePrompt {
 				text: skill.name,
 			});
 			btn.setAttribute('title', skill.description || skill.name);
-			btn.addEventListener('click', (e) => {
+
+			// Create and store the click handler so we can remove it later
+			const clickHandler = (e: MouseEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
 				logger.info('[InlinePrompt] Skill button clicked:', skill.name);
@@ -262,7 +274,10 @@ export class InlinePrompt {
 				const command = skill.template.replace(/\{\{selection\}\}/g, this.selectedText);
 				this.hide();
 				this.onSubmit(command);
-			});
+			};
+
+			btn.addEventListener('click', clickHandler);
+			this.skillButtonHandlers.set(btn, clickHandler);
 		}
 
 		logger.debug('[InlinePrompt] Added', skills.length, 'skill buttons');
