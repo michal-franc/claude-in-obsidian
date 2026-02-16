@@ -65,6 +65,10 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			logger.debug('Initializing status bar...');
 			this.statusBarManager = new StatusBarManager(this, this.app);
 			this.statusBarManager.initialize();
+			this.statusBarManager.setStopCallback(() => {
+				logger.info('User requested stop via callout button');
+				this.sessionManager.abortCurrentCommand();
+			});
 			logger.info('Status bar initialized');
 
 			// Initialize request manager
@@ -226,8 +230,12 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			this.statusBarManager.setProcessing('Processing...');
 		}
 
-		// Start countdown timer
-		this.statusBarManager.startCountdown(this.settings.commandTimeout);
+		// Start timer based on auto-stop setting
+		if (this.settings.autoStopOnTimeout) {
+			this.statusBarManager.startCountdown(this.settings.commandTimeout);
+		} else {
+			this.statusBarManager.startElapsedTimer();
+		}
 
 		// Process the queue (non-blocking)
 		this.processNextRequest(editor);
@@ -261,7 +269,8 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			const response = await this.sessionManager.executeCommand(
 				request.command,
 				request.originalText,
-				filePath
+				filePath,
+				this.settings.autoStopOnTimeout
 			);
 
 			// Stop countdown after command completes
@@ -320,8 +329,12 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			// Update status bar with queue info
 			this.statusBarManager.setProcessing(`Processing... (${status.queueLength} queued)`);
 
-			// Start countdown for next queued request
-			this.statusBarManager.startCountdown(this.settings.commandTimeout);
+			// Start timer for next queued request
+			if (this.settings.autoStopOnTimeout) {
+				this.statusBarManager.startCountdown(this.settings.commandTimeout);
+			} else {
+				this.statusBarManager.startElapsedTimer();
+			}
 
 			// Process next request
 			const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);

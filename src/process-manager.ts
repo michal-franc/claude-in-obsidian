@@ -16,6 +16,8 @@ export class ClaudeProcess {
 	private envVars: Record<string, string>;
 	private commandTimeout: number = 30000; // 30 seconds
 	private isActive: boolean = true;
+	private currentProcess: ChildProcess | null = null;
+	private currentReject: ((err: Error) => void) | null = null;
 
 	constructor(options: ClaudeProcessOptions, timeout?: number) {
 		this.sessionId = options.sessionId;
@@ -42,7 +44,7 @@ export class ClaudeProcess {
 	 * @param selectedText - The text the user selected (if any)
 	 * @param filePath - Path to the file being edited (Feature 007)
 	 */
-	async sendCommand(command: string, selectedText?: string, filePath?: string): Promise<string> {
+	async sendCommand(command: string, selectedText?: string, filePath?: string, autoStopOnTimeout: boolean = true): Promise<string> {
 		logger.info(`[Session ${this.sessionId}] Executing command:`, command.substring(0, 100));
 
 		if (!this.isActive) {
@@ -64,18 +66,29 @@ export class ClaudeProcess {
 				env: { ...process.env, ...this.envVars },
 			});
 
+			// Store refs for abort support
+			this.currentProcess = claudeProcess;
+			this.currentReject = reject;
+
 			const pid = claudeProcess.pid;
 			logger.info(`[Session ${this.sessionId}] Claude process spawned with PID:`, pid);
 
 			let stdout = '';
 			let stderr = '';
 
-			// Set up timeout
-			const timeoutId = setTimeout(() => {
-				logger.error(`[Session ${this.sessionId}] Command timeout after ${this.commandTimeout}ms`);
-				claudeProcess.kill('SIGKILL');
-				reject(new Error('Command timeout'));
-			}, this.commandTimeout);
+			// Set up timeout only when auto-stop is enabled
+			let timeoutId: ReturnType<typeof setTimeout> | null = null;
+			if (autoStopOnTimeout) {
+				timeoutId = setTimeout(() => {
+					logger.error(`[Session ${this.sessionId}] Command timeout after ${this.commandTimeout}ms`);
+					claudeProcess.kill('SIGKILL');
+					this.currentProcess = null;
+					this.currentReject = null;
+					reject(new Error('Command timeout'));
+				}, this.commandTimeout);
+			} else {
+				logger.info(`[Session ${this.sessionId}] Auto-stop disabled, no timeout set`);
+			}
 
 			// Collect stdout
 			claudeProcess.stdout!.on('data', (data: Buffer) => {
@@ -93,7 +106,9 @@ export class ClaudeProcess {
 
 			// Handle process exit
 			claudeProcess.on('exit', (code: number | null) => {
-				clearTimeout(timeoutId);
+				if (timeoutId) clearTimeout(timeoutId);
+				this.currentProcess = null;
+				this.currentReject = null;
 				logger.info(`[Session ${this.sessionId}] Process exited with code:`, code);
 
 				if (code === 0 && stdout.length > 0) {
@@ -115,7 +130,9 @@ export class ClaudeProcess {
 
 			// Handle spawn errors
 			claudeProcess.on('error', (error: Error) => {
-				clearTimeout(timeoutId);
+				if (timeoutId) clearTimeout(timeoutId);
+				this.currentProcess = null;
+				this.currentReject = null;
 				logger.error(`[Session ${this.sessionId}] Spawn error:`, error.message);
 				reject(new Error(`Failed to spawn Claude: ${error.message}`));
 			});
@@ -127,12 +144,33 @@ export class ClaudeProcess {
 				claudeProcess.stdin!.end();
 				logger.debug(`[Session ${this.sessionId}] Input sent, stdin closed`);
 			} catch (error) {
-				clearTimeout(timeoutId);
+				if (timeoutId) clearTimeout(timeoutId);
+				this.currentProcess = null;
+				this.currentReject = null;
 				logger.error(`[Session ${this.sessionId}] Error writing to stdin:`, error);
 				claudeProcess.kill('SIGKILL');
 				reject(error);
 			}
 		});
+	}
+
+	/**
+	 * Abort the currently running command
+	 */
+	abortCommand(): void {
+		if (this.currentProcess) {
+			logger.info(`[Session ${this.sessionId}] Aborting current command`);
+			const proc = this.currentProcess;
+			const rej = this.currentReject;
+			this.currentProcess = null;
+			this.currentReject = null;
+			proc.kill('SIGKILL');
+			if (rej) {
+				rej(new Error('Command stopped by user'));
+			}
+		} else {
+			logger.debug(`[Session ${this.sessionId}] No active command to abort`);
+		}
 	}
 
 	/**
@@ -296,6 +334,18 @@ export class ClaudeProcessManager {
 			logger.info(`[ProcessManager] Session terminated, remaining sessions:`, this.processes.size);
 		} else {
 			logger.warn(`[ProcessManager] Session not found:`, sessionId);
+		}
+	}
+
+	/**
+	 * Abort the current command on a session
+	 */
+	abortSession(sessionId: string): void {
+		const process = this.processes.get(sessionId);
+		if (process) {
+			process.abortCommand();
+		} else {
+			logger.warn(`[ProcessManager] Session not found for abort:`, sessionId);
 		}
 	}
 

@@ -200,45 +200,243 @@ describe('StatusBarManager', () => {
 			expect(secondInterval).not.toBeNull();
 		});
 
-		it('should set data-countdown attribute on callout DOM element', () => {
+		it('should inject countdown text element into callout DOM', () => {
+			const mockCountdownDiv = {
+				className: '',
+				textContent: '',
+				remove: jest.fn(),
+			};
 			const mockCalloutEl = {
-				setAttribute: jest.fn(),
-				removeAttribute: jest.fn(),
+				querySelector: jest.fn().mockReturnValue(null),
+				appendChild: jest.fn(),
 			};
 			const mockDocument = {
 				querySelector: jest.fn().mockReturnValue(mockCalloutEl),
 				querySelectorAll: jest.fn().mockReturnValue([]),
+				createElement: jest.fn().mockReturnValue(mockCountdownDiv),
 			};
-			(globalThis as any).document = mockDocument;
+			(globalThis as any).activeDocument = mockDocument;
 
 			statusBarManager.setProcessing('Processing...');
 			statusBarManager.startCountdown(30000);
 
-			expect(mockCalloutEl.setAttribute).toHaveBeenCalledWith(
-				'data-countdown',
-				'Claude is processing... (30s)'
-			);
+			expect(mockDocument.createElement).toHaveBeenCalledWith('div');
+			expect(mockCountdownDiv.className).toBe('claude-countdown-text');
+			expect(mockCountdownDiv.textContent).toBe('30s');
 
-			delete (globalThis as any).document;
+			delete (globalThis as any).activeDocument;
 		});
 
-		it('should remove data-countdown attribute on stopCountdown()', () => {
+		it('should remove countdown text on stopCountdown()', () => {
+			const mockCountdownDiv = {
+				className: '',
+				textContent: '',
+				remove: jest.fn(),
+			};
 			const mockCalloutEl = {
-				removeAttribute: jest.fn(),
+				querySelector: jest.fn().mockReturnValue(null),
+				appendChild: jest.fn(),
 			};
 			const mockDocument = {
-				querySelector: jest.fn().mockReturnValue(null),
-				querySelectorAll: jest.fn().mockReturnValue([mockCalloutEl]),
+				querySelector: jest.fn().mockReturnValue(mockCalloutEl),
+				querySelectorAll: jest.fn().mockReturnValue([]),
+				createElement: jest.fn().mockReturnValue(mockCountdownDiv),
 			};
-			(globalThis as any).document = mockDocument;
+			(globalThis as any).activeDocument = mockDocument;
 
 			statusBarManager.setProcessing('Processing...');
 			statusBarManager.startCountdown(30000);
 			statusBarManager.stopCountdown();
 
-			expect(mockCalloutEl.removeAttribute).toHaveBeenCalledWith('data-countdown');
+			expect(mockCountdownDiv.remove).toHaveBeenCalled();
 
-			delete (globalThis as any).document;
+			delete (globalThis as any).activeDocument;
+		});
+	});
+
+	describe('Elapsed timer', () => {
+		beforeEach(() => {
+			statusBarManager.initialize();
+			jest.spyOn(Date, 'now').mockReturnValue(1000);
+		});
+
+		afterEach(() => {
+			(Date.now as jest.Mock).mockRestore();
+		});
+
+		it('should count up from 0', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startElapsedTimer();
+
+			const statusBarEl = (statusBarManager as any).statusBarEl;
+			// At t=0, elapsed is 0s
+			expect(statusBarEl.setText).toHaveBeenCalledWith('Claude: Processing... (0s elapsed)');
+
+			// Advance 5 seconds
+			(Date.now as jest.Mock).mockReturnValue(6000);
+			jest.advanceTimersByTime(1000);
+			expect(statusBarEl.setText).toHaveBeenCalledWith('Claude: Processing... (5s elapsed)');
+		});
+
+		it('should show "(Xs elapsed)" format in status bar', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startElapsedTimer();
+
+			(Date.now as jest.Mock).mockReturnValue(46000);
+			jest.advanceTimersByTime(1000);
+
+			const statusBarEl = (statusBarManager as any).statusBarEl;
+			expect(statusBarEl.setText).toHaveBeenCalledWith('Claude: Processing... (45s elapsed)');
+		});
+
+		it('should NOT auto-stop', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startElapsedTimer();
+
+			// Advance well past any reasonable timeout
+			(Date.now as jest.Mock).mockReturnValue(120001);
+			jest.advanceTimersByTime(120000);
+
+			// Interval should still be running
+			expect((statusBarManager as any).countdownInterval).not.toBeNull();
+		});
+
+		it('should be cleared by stopCountdown()', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startElapsedTimer();
+
+			statusBarManager.stopCountdown();
+
+			expect((statusBarManager as any).countdownInterval).toBeNull();
+		});
+
+		it('should report elapsed seconds via getCountdownRemaining()', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startElapsedTimer();
+
+			(Date.now as jest.Mock).mockReturnValue(11000);
+			expect(statusBarManager.getCountdownRemaining()).toBe(10);
+		});
+
+		it('should report elapsed timer mode', () => {
+			statusBarManager.startElapsedTimer();
+			expect(statusBarManager.getTimerMode()).toBe('elapsed');
+		});
+
+		it('should inject countdown text with elapsed format into callout DOM', () => {
+			const createdEls: any[] = [];
+			const mockCalloutEl = {
+				querySelector: jest.fn().mockReturnValue(null),
+				appendChild: jest.fn(),
+			};
+			const mockDocument = {
+				querySelector: jest.fn().mockReturnValue(mockCalloutEl),
+				querySelectorAll: jest.fn().mockReturnValue([]),
+				createElement: jest.fn().mockImplementation(() => {
+					const el = { className: '', textContent: '', addEventListener: jest.fn(), remove: jest.fn() };
+					createdEls.push(el);
+					return el;
+				}),
+			};
+			(globalThis as any).activeDocument = mockDocument;
+
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startElapsedTimer();
+
+			// First createElement should be for the countdown div
+			const countdownDiv = createdEls.find(el => el.className === 'claude-countdown-text');
+			expect(countdownDiv).toBeDefined();
+			expect(countdownDiv.textContent).toBe('0s elapsed');
+
+			delete (globalThis as any).activeDocument;
+		});
+
+		it('should inject stop button into callout DOM', () => {
+			const createdEls: any[] = [];
+			const mockCalloutEl = {
+				querySelector: jest.fn().mockReturnValue(null),
+				appendChild: jest.fn(),
+			};
+			const mockDocument = {
+				querySelector: jest.fn().mockReturnValue(mockCalloutEl),
+				querySelectorAll: jest.fn().mockReturnValue([]),
+				createElement: jest.fn().mockImplementation(() => {
+					const el = { className: '', textContent: '', addEventListener: jest.fn(), remove: jest.fn() };
+					createdEls.push(el);
+					return el;
+				}),
+			};
+			(globalThis as any).activeDocument = mockDocument;
+
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startElapsedTimer();
+
+			const button = createdEls.find(el => el.className === 'claude-stop-button');
+			expect(button).toBeDefined();
+			expect(button.textContent).toBe('Stop');
+			expect(mockCalloutEl.appendChild).toHaveBeenCalledWith(button);
+
+			delete (globalThis as any).activeDocument;
+		});
+
+		it('should fire stop callback when stop button is clicked', () => {
+			const stopCallback = jest.fn();
+			statusBarManager.setStopCallback(stopCallback);
+
+			const createdEls: any[] = [];
+			const mockCalloutEl = {
+				querySelector: jest.fn().mockReturnValue(null),
+				appendChild: jest.fn(),
+			};
+			const mockDocument = {
+				querySelector: jest.fn().mockReturnValue(mockCalloutEl),
+				querySelectorAll: jest.fn().mockReturnValue([]),
+				createElement: jest.fn().mockImplementation(() => {
+					const el = { className: '', textContent: '', addEventListener: jest.fn(), remove: jest.fn() };
+					createdEls.push(el);
+					return el;
+				}),
+			};
+			(globalThis as any).activeDocument = mockDocument;
+
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startElapsedTimer();
+
+			const button = createdEls.find(el => el.className === 'claude-stop-button');
+			// Get the click handler from addEventListener calls
+			const clickCall = button.addEventListener.mock.calls.find((c: any[]) => c[0] === 'click');
+			clickCall[1]({ stopPropagation: jest.fn() });
+
+			expect(stopCallback).toHaveBeenCalled();
+
+			delete (globalThis as any).activeDocument;
+		});
+
+		it('should not inject duplicate stop button', () => {
+			const existingButton = {};
+			const existingText = {};
+			const queryResults: Record<string, any> = {
+				'.claude-stop-button': existingButton,
+				'.claude-countdown-text': existingText,
+			};
+			const mockCalloutEl = {
+				querySelector: jest.fn().mockImplementation((sel: string) => queryResults[sel] || null),
+				appendChild: jest.fn(),
+			};
+			const mockDocument = {
+				querySelector: jest.fn().mockReturnValue(mockCalloutEl),
+				querySelectorAll: jest.fn().mockReturnValue([]),
+				createElement: jest.fn(),
+			};
+			(globalThis as any).activeDocument = mockDocument;
+
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startElapsedTimer();
+
+			// Should not create new elements since they already exist
+			expect(mockDocument.createElement).not.toHaveBeenCalled();
+
+			delete (globalThis as any).activeDocument;
 		});
 	});
 

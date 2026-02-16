@@ -36,6 +36,14 @@ export class StatusBarManager {
 	private countdownStartTime: number = 0;
 	/** Total countdown duration in milliseconds */
 	private countdownTotalMs: number = 0;
+	/** Timer mode: countdown (max→0) or elapsed (0→∞) */
+	private timerMode: 'countdown' | 'elapsed' = 'countdown';
+	/** Callback when user clicks the stop button */
+	private onStopRequested: (() => void) | null = null;
+	/** Reference to injected stop button for cleanup */
+	private stopButtonEl: HTMLElement | null = null;
+	/** Reference to injected countdown text element for cleanup */
+	private countdownTextEl: HTMLElement | null = null;
 
 	constructor(plugin: Plugin, app: App) {
 		this.plugin = plugin;
@@ -115,13 +123,31 @@ export class StatusBarManager {
 	}
 
 	/**
-	 * Get the countdown remaining seconds, or null if no countdown is active
+	 * Set callback for when user clicks the stop button
+	 */
+	setStopCallback(cb: () => void): void {
+		this.onStopRequested = cb;
+	}
+
+	/**
+	 * Get the timer value: remaining seconds (countdown) or elapsed seconds (elapsed).
+	 * Returns null if no timer is active.
 	 */
 	getCountdownRemaining(): number | null {
 		if (!this.countdownInterval) return null;
 		const elapsed = Date.now() - this.countdownStartTime;
+		if (this.timerMode === 'elapsed') {
+			return Math.floor(elapsed / 1000);
+		}
 		const remainingMs = Math.max(0, this.countdownTotalMs - elapsed);
 		return Math.ceil(remainingMs / 1000);
+	}
+
+	/**
+	 * Get the current timer mode
+	 */
+	getTimerMode(): 'countdown' | 'elapsed' {
+		return this.timerMode;
 	}
 
 	/**
@@ -141,9 +167,13 @@ export class StatusBarManager {
 
 			case 'processing': {
 				this.statusBarEl.addClass('claude-status-processing');
-				const remaining = this.getCountdownRemaining();
-				if (remaining !== null) {
-					this.statusBarEl.setText(`Claude: Processing... (${remaining}s)`);
+				const timerValue = this.getCountdownRemaining();
+				if (timerValue !== null) {
+					if (this.timerMode === 'elapsed') {
+						this.statusBarEl.setText(`Claude: Processing... (${timerValue}s elapsed)`);
+					} else {
+						this.statusBarEl.setText(`Claude: Processing... (${timerValue}s)`);
+					}
 				} else {
 					this.statusBarEl.setText(this.currentInfo.message || 'Claude: Processing...');
 				}
@@ -197,9 +227,23 @@ export class StatusBarManager {
 	 */
 	startCountdown(totalMs: number): void {
 		this.stopCountdown();
+		this.timerMode = 'countdown';
 		this.countdownStartTime = Date.now();
 		this.countdownTotalMs = totalMs;
 		logger.debug('[StatusBarManager] Starting countdown:', totalMs, 'ms');
+		this.countdownInterval = setInterval(() => this.updateCountdownDisplay(), 1000);
+		this.updateCountdownDisplay();
+	}
+
+	/**
+	 * Start an elapsed timer that counts up from 0 (for manual stop mode)
+	 */
+	startElapsedTimer(): void {
+		this.stopCountdown();
+		this.timerMode = 'elapsed';
+		this.countdownStartTime = Date.now();
+		this.countdownTotalMs = 0;
+		logger.debug('[StatusBarManager] Starting elapsed timer');
 		this.countdownInterval = setInterval(() => this.updateCountdownDisplay(), 1000);
 		this.updateCountdownDisplay();
 	}
@@ -212,6 +256,7 @@ export class StatusBarManager {
 			clearInterval(this.countdownInterval);
 			this.countdownInterval = null;
 		}
+		this.removeInjectedElements();
 		this.clearCalloutCountdown();
 	}
 
@@ -220,34 +265,103 @@ export class StatusBarManager {
 	 */
 	private updateCountdownDisplay(): void {
 		const elapsed = Date.now() - this.countdownStartTime;
-		const remainingMs = Math.max(0, this.countdownTotalMs - elapsed);
-		const remainingSec = Math.ceil(remainingMs / 1000);
 
 		// Re-render status bar (render() reads countdown state)
 		this.render();
 
 		// Update callout DOM element (re-apply every tick since Obsidian may recreate DOM)
-		if (typeof document !== 'undefined') {
-			const calloutEl = document.querySelector('.callout[data-callout="claude-processing"]');
+		// Use activeDocument (Obsidian's active document context) instead of document
+		if (typeof activeDocument !== 'undefined') {
+			const calloutEl = activeDocument.querySelector('.callout[data-callout="claude-processing"]');
 			if (calloutEl) {
-				calloutEl.setAttribute('data-countdown', `Claude is processing... (${remainingSec}s)`);
+				if (this.timerMode === 'elapsed') {
+					const elapsedSec = Math.floor(elapsed / 1000);
+					this.injectCountdownText(calloutEl, `${elapsedSec}s elapsed`);
+					this.injectStopButton(calloutEl);
+				} else {
+					const remainingMs = Math.max(0, this.countdownTotalMs - elapsed);
+					const remainingSec = Math.ceil(remainingMs / 1000);
+					this.injectCountdownText(calloutEl, `${remainingSec}s`);
+				}
 			}
 		}
 
-		// Auto-stop at 0
-		if (remainingMs <= 0 && this.countdownInterval) {
-			clearInterval(this.countdownInterval);
-			this.countdownInterval = null;
+		// Auto-stop at 0 (countdown mode only)
+		if (this.timerMode === 'countdown') {
+			const remainingMs = Math.max(0, this.countdownTotalMs - elapsed);
+			if (remainingMs <= 0 && this.countdownInterval) {
+				clearInterval(this.countdownInterval);
+				this.countdownInterval = null;
+			}
 		}
 	}
 
 	/**
-	 * Remove countdown attribute from all processing callouts
+	 * Inject or update countdown text element in the callout
+	 */
+	private injectCountdownText(calloutEl: Element, text: string): void {
+		let textEl = calloutEl.querySelector('.claude-countdown-text') as HTMLElement | null;
+		if (!textEl) {
+			textEl = activeDocument.createElement('div');
+			textEl.className = 'claude-countdown-text';
+			const titleEl = calloutEl.querySelector('.callout-title');
+			if (titleEl) {
+				titleEl.appendChild(textEl);
+			} else {
+				calloutEl.appendChild(textEl);
+			}
+			this.countdownTextEl = textEl;
+		}
+		textEl.textContent = text;
+	}
+
+	/**
+	 * Inject a stop button into the callout element (elapsed mode only)
+	 */
+	private injectStopButton(calloutEl: Element): void {
+		// Don't inject if already present
+		if (calloutEl.querySelector('.claude-stop-button')) return;
+
+		const button = activeDocument.createElement('button');
+		button.className = 'claude-stop-button';
+		button.textContent = 'Stop';
+		button.addEventListener('click', (e) => {
+			e.stopPropagation();
+			if (this.onStopRequested) {
+				this.onStopRequested();
+			}
+		});
+		// Insert into callout-title if available, otherwise append to callout
+		const titleEl = calloutEl.querySelector('.callout-title');
+		if (titleEl) {
+			titleEl.appendChild(button);
+		} else {
+			calloutEl.appendChild(button);
+		}
+		this.stopButtonEl = button;
+	}
+
+	/**
+	 * Remove injected DOM elements (stop button and countdown text)
+	 */
+	private removeInjectedElements(): void {
+		if (this.stopButtonEl) {
+			this.stopButtonEl.remove();
+			this.stopButtonEl = null;
+		}
+		if (this.countdownTextEl) {
+			this.countdownTextEl.remove();
+			this.countdownTextEl = null;
+		}
+	}
+
+	/**
+	 * Remove all countdown text elements from processing callouts
 	 */
 	private clearCalloutCountdown(): void {
-		if (typeof document !== 'undefined') {
-			const callouts = document.querySelectorAll('.callout[data-callout="claude-processing"][data-countdown]');
-			callouts.forEach((el) => el.removeAttribute('data-countdown'));
+		if (typeof activeDocument !== 'undefined') {
+			const texts = activeDocument.querySelectorAll('.callout[data-callout="claude-processing"] .claude-countdown-text');
+			texts.forEach((el) => el.remove());
 		}
 	}
 

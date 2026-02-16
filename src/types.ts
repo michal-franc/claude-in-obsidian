@@ -37,6 +37,8 @@ export interface ClaudeFromObsidianSettings {
 	defaultWorkingDirectory: string;
 	/** Command timeout in milliseconds */
 	commandTimeout: number;
+	/** Whether to auto-kill process when timeout expires */
+	autoStopOnTimeout: boolean;
 }
 
 /**
@@ -45,6 +47,7 @@ export interface ClaudeFromObsidianSettings {
 export const DEFAULT_SETTINGS: ClaudeFromObsidianSettings = {
 	defaultWorkingDirectory: '~',
 	commandTimeout: 30000, // 30 seconds
+	autoStopOnTimeout: true,
 };
 
 /**

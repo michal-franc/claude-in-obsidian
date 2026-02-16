@@ -27,6 +27,13 @@ Exception: Skip for trivial changes (typos, single-line fixes).
 Write tests for: utility functions, business logic, algorithms, critical bug fixes.
 Skip tests for: simple getters, UI/modals, IPC integration, trivial code.
 
+### Debugging in Obsidian
+- **Use `new Notice(msg, timeout)` (toast notifications) for debugging** — they're visible directly in the UI without dev tools
+- `console.log` is stripped by esbuild production minification — do NOT rely on it for debugging
+- `console.warn`/`console.error` survive minification but require the dev console (Ctrl+Shift+I)
+- **Use `activeDocument` instead of `document`** for DOM queries — Obsidian uses a separate document context for editor content (`activeDocument !== document`)
+- In test mocks, set `(globalThis as any).activeDocument` not `document`
+
 ### Other Rules
 - Add logging for easier debugging
 - Split multi-feature requests into separate PRs

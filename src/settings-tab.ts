@@ -52,6 +52,21 @@ export class ClaudeSettingsTab extends PluginSettingTab {
 					})
 			);
 
+		// Auto-stop on timeout
+		new Setting(containerEl)
+			.setName('Auto-stop on timeout')
+			.setDesc(
+				'Kill Claude process when timeout expires. When off, shows elapsed time and a manual stop button.'
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoStopOnTimeout)
+					.onChange(async (value) => {
+						this.plugin.settings.autoStopOnTimeout = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
 		// Session status
 		containerEl.createEl('h3', { text: 'Session Status' });
 

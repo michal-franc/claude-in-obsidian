@@ -80,7 +80,7 @@ export class DefaultSessionManager {
 	 * @param selectedText - The text the user selected (if any)
 	 * @param filePath - Path to the file being edited (Feature 007)
 	 */
-	async executeCommand(command: string, selectedText?: string, filePath?: string): Promise<string> {
+	async executeCommand(command: string, selectedText?: string, filePath?: string, autoStopOnTimeout: boolean = true): Promise<string> {
 		logger.info('[DefaultSessionManager] Executing command...');
 		logger.debug('[DefaultSessionManager] File path:', filePath || 'none');
 
@@ -92,7 +92,14 @@ export class DefaultSessionManager {
 			throw new Error('Failed to get session process');
 		}
 
-		return await process.sendCommand(command, selectedText, filePath);
+		return await process.sendCommand(command, selectedText, filePath, autoStopOnTimeout);
+	}
+
+	/**
+	 * Abort the currently running command
+	 */
+	abortCurrentCommand(): void {
+		this.processManager.abortSession(DEFAULT_SESSION_ID);
 	}
 
 	/**
