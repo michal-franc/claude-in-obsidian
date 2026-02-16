@@ -30,6 +30,12 @@ export class StatusBarManager {
 	private currentInfo: StatusBarInfo = { state: 'idle' };
 	/** Timer for auto-cleanup of orphaned responses */
 	private warningCleanupTimeout: ReturnType<typeof setTimeout> | null = null;
+	/** Countdown interval for processing timer */
+	private countdownInterval: ReturnType<typeof setInterval> | null = null;
+	/** Timestamp when countdown started */
+	private countdownStartTime: number = 0;
+	/** Total countdown duration in milliseconds */
+	private countdownTotalMs: number = 0;
 
 	constructor(plugin: Plugin, app: App) {
 		this.plugin = plugin;
@@ -171,9 +177,71 @@ export class StatusBarManager {
 	}
 
 	/**
+	 * Start a countdown timer that updates the status bar and callout overlay
+	 */
+	startCountdown(totalMs: number): void {
+		this.stopCountdown();
+		this.countdownStartTime = Date.now();
+		this.countdownTotalMs = totalMs;
+		logger.debug('[StatusBarManager] Starting countdown:', totalMs, 'ms');
+		this.updateCountdownDisplay();
+		this.countdownInterval = setInterval(() => this.updateCountdownDisplay(), 1000);
+	}
+
+	/**
+	 * Stop the countdown timer and clean up callout DOM
+	 */
+	stopCountdown(): void {
+		if (this.countdownInterval) {
+			clearInterval(this.countdownInterval);
+			this.countdownInterval = null;
+		}
+		this.clearCalloutCountdown();
+	}
+
+	/**
+	 * Update the countdown display in status bar and callout DOM
+	 */
+	private updateCountdownDisplay(): void {
+		const elapsed = Date.now() - this.countdownStartTime;
+		const remainingMs = Math.max(0, this.countdownTotalMs - elapsed);
+		const remainingSec = Math.ceil(remainingMs / 1000);
+
+		// Update status bar text
+		if (this.statusBarEl && this.currentInfo.state === 'processing') {
+			this.statusBarEl.setText(`Claude: Processing... (${remainingSec}s)`);
+		}
+
+		// Update callout DOM element
+		if (typeof document !== 'undefined') {
+			const calloutEl = document.querySelector('.callout[data-callout="claude-processing"]');
+			if (calloutEl) {
+				calloutEl.setAttribute('data-countdown', `Claude is processing... (${remainingSec}s)`);
+			}
+		}
+
+		// Auto-stop at 0
+		if (remainingMs <= 0 && this.countdownInterval) {
+			clearInterval(this.countdownInterval);
+			this.countdownInterval = null;
+		}
+	}
+
+	/**
+	 * Remove countdown attribute from all processing callouts
+	 */
+	private clearCalloutCountdown(): void {
+		if (typeof document !== 'undefined') {
+			const callouts = document.querySelectorAll('.callout[data-callout="claude-processing"][data-countdown]');
+			callouts.forEach((el) => el.removeAttribute('data-countdown'));
+		}
+	}
+
+	/**
 	 * Clean up status bar
 	 */
 	destroy(): void {
+		this.stopCountdown();
 		this.clearWarningCleanupTimer();
 		if (this.statusBarEl) {
 			this.statusBarEl.remove();

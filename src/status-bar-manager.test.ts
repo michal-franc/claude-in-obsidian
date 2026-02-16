@@ -111,6 +111,123 @@ describe('StatusBarManager', () => {
 		});
 	});
 
+	describe('Countdown timer', () => {
+		beforeEach(() => {
+			statusBarManager.initialize();
+			jest.spyOn(Date, 'now').mockReturnValue(1000);
+		});
+
+		afterEach(() => {
+			(Date.now as jest.Mock).mockRestore();
+		});
+
+		it('should update status bar text with remaining seconds', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startCountdown(30000);
+
+			// Initial tick: 30s remaining
+			const statusBarEl = (statusBarManager as any).statusBarEl;
+			expect(statusBarEl.setText).toHaveBeenCalledWith('Claude: Processing... (30s)');
+
+			// Advance 5 seconds
+			(Date.now as jest.Mock).mockReturnValue(6000);
+			jest.advanceTimersByTime(1000);
+			expect(statusBarEl.setText).toHaveBeenCalledWith('Claude: Processing... (25s)');
+		});
+
+		it('should stop countdown and clear interval', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startCountdown(30000);
+
+			statusBarManager.stopCountdown();
+
+			// Advance time - should not throw or update
+			(Date.now as jest.Mock).mockReturnValue(10000);
+			jest.advanceTimersByTime(5000);
+
+			// The internal interval should be null
+			expect((statusBarManager as any).countdownInterval).toBeNull();
+		});
+
+		it('should auto-stop at 0 seconds', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startCountdown(3000);
+
+			// Advance past the countdown duration
+			(Date.now as jest.Mock).mockReturnValue(4001);
+			jest.advanceTimersByTime(4000);
+
+			// Interval should be cleared
+			expect((statusBarManager as any).countdownInterval).toBeNull();
+		});
+
+		it('should be stopped by destroy()', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startCountdown(30000);
+
+			statusBarManager.destroy();
+
+			expect((statusBarManager as any).countdownInterval).toBeNull();
+		});
+
+		it('should clear previous countdown when starting a new one', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startCountdown(30000);
+
+			const firstInterval = (statusBarManager as any).countdownInterval;
+			expect(firstInterval).not.toBeNull();
+
+			// Start a new countdown
+			(Date.now as jest.Mock).mockReturnValue(5000);
+			statusBarManager.startCountdown(20000);
+
+			// Should have a new interval (old one cleared)
+			const secondInterval = (statusBarManager as any).countdownInterval;
+			expect(secondInterval).not.toBeNull();
+		});
+
+		it('should set data-countdown attribute on callout DOM element', () => {
+			const mockCalloutEl = {
+				setAttribute: jest.fn(),
+				removeAttribute: jest.fn(),
+			};
+			const mockDocument = {
+				querySelector: jest.fn().mockReturnValue(mockCalloutEl),
+				querySelectorAll: jest.fn().mockReturnValue([]),
+			};
+			(globalThis as any).document = mockDocument;
+
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startCountdown(30000);
+
+			expect(mockCalloutEl.setAttribute).toHaveBeenCalledWith(
+				'data-countdown',
+				'Claude is processing... (30s)'
+			);
+
+			delete (globalThis as any).document;
+		});
+
+		it('should remove data-countdown attribute on stopCountdown()', () => {
+			const mockCalloutEl = {
+				removeAttribute: jest.fn(),
+			};
+			const mockDocument = {
+				querySelector: jest.fn().mockReturnValue(null),
+				querySelectorAll: jest.fn().mockReturnValue([mockCalloutEl]),
+			};
+			(globalThis as any).document = mockDocument;
+
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startCountdown(30000);
+			statusBarManager.stopCountdown();
+
+			expect(mockCalloutEl.removeAttribute).toHaveBeenCalledWith('data-countdown');
+
+			delete (globalThis as any).document;
+		});
+	});
+
 	describe('State management', () => {
 		beforeEach(() => {
 			statusBarManager.initialize();

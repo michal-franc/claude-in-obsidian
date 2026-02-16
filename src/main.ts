@@ -226,6 +226,9 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 			this.statusBarManager.setProcessing('Processing...');
 		}
 
+		// Start countdown timer
+		this.statusBarManager.startCountdown(this.settings.commandTimeout);
+
 		// Process the queue (non-blocking)
 		this.processNextRequest(editor);
 	}
@@ -261,6 +264,9 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 				filePath
 			);
 
+			// Stop countdown after command completes
+			this.statusBarManager.stopCountdown();
+
 			// Check if tags are still intact
 			if (!this.tagManager.areTagsIntact(editor, request)) {
 				logger.warn('Tags were modified, orphaning request');
@@ -281,6 +287,9 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 
 		} catch (error) {
 			logger.error('Request failed:', error);
+
+			// Stop countdown on error
+			this.statusBarManager.stopCountdown();
 
 			// Try to inject error into tags
 			const errorMsg = (error as Error).message;
@@ -310,6 +319,9 @@ export default class ClaudeFromObsidianPlugin extends Plugin {
 		if (status.queueLength > 0) {
 			// Update status bar with queue info
 			this.statusBarManager.setProcessing(`Processing... (${status.queueLength} queued)`);
+
+			// Start countdown for next queued request
+			this.statusBarManager.startCountdown(this.settings.commandTimeout);
 
 			// Process next request
 			const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);

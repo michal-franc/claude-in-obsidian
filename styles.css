@@ -305,6 +305,10 @@
 	font-weight: 500;
 }
 
+.callout[data-callout="claude-processing"][data-countdown]::before {
+	content: attr(data-countdown);
+}
+
 .callout[data-callout="claude-processing"]::after {
 	content: "";
 	position: absolute;
