@@ -18,6 +18,7 @@ export class ClaudeProcess {
 	private isActive: boolean = true;
 	private currentProcess: ChildProcess | null = null;
 	private currentReject: ((err: Error) => void) | null = null;
+	private spawnedPids: Set<number> = new Set();
 
 	constructor(options: ClaudeProcessOptions, timeout?: number) {
 		this.sessionId = options.sessionId;
@@ -71,10 +72,26 @@ export class ClaudeProcess {
 			this.currentReject = reject;
 
 			const pid = claudeProcess.pid;
+			if (pid) {
+				this.spawnedPids.add(pid);
+			}
 			logger.info(`[Session ${this.sessionId}] Claude process spawned with PID:`, pid);
 
 			let stdout = '';
 			let stderr = '';
+			let settled = false;
+
+			// Clean up process resources to prevent zombie accumulation.
+			// Destroys stdio streams, removes listeners, and clears refs
+			// so the kernel can reap the child process entry.
+			const cleanup = () => {
+				if (pid) this.spawnedPids.delete(pid);
+				this.currentProcess = null;
+				this.currentReject = null;
+				claudeProcess.stdout?.destroy();
+				claudeProcess.stderr?.destroy();
+				claudeProcess.removeAllListeners();
+			};
 
 			// Set up timeout only when auto-stop is enabled
 			let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -82,9 +99,7 @@ export class ClaudeProcess {
 				timeoutId = setTimeout(() => {
 					logger.error(`[Session ${this.sessionId}] Command timeout after ${this.commandTimeout}ms`);
 					claudeProcess.kill('SIGKILL');
-					this.currentProcess = null;
-					this.currentReject = null;
-					reject(new Error('Command timeout'));
+					// cleanup happens in 'close' handler
 				}, this.commandTimeout);
 			} else {
 				logger.info(`[Session ${this.sessionId}] Auto-stop disabled, no timeout set`);
@@ -104,25 +119,27 @@ export class ClaudeProcess {
 				stderr += text;
 			});
 
-			// Handle process exit
-			claudeProcess.on('exit', (code: number | null) => {
+			// Use 'close' instead of 'exit' — 'close' fires after stdio streams
+			// are fully drained AND the kernel process entry is reaped (waitpid),
+			// which prevents zombie process accumulation.
+			claudeProcess.on('close', (code: number | null) => {
 				if (timeoutId) clearTimeout(timeoutId);
-				this.currentProcess = null;
-				this.currentReject = null;
-				logger.info(`[Session ${this.sessionId}] Process exited with code:`, code);
+				cleanup();
+
+				if (settled) return;
+				settled = true;
+
+				logger.info(`[Session ${this.sessionId}] Process closed with code:`, code);
 
 				if (code === 0 && stdout.length > 0) {
-					// Success
 					const cleaned = this.cleanResponse(stdout);
 					logger.info(`[Session ${this.sessionId}] Command successful, response length:`, cleaned.length);
 					logger.debug(`[Session ${this.sessionId}] Response preview:`, cleaned.substring(0, 200));
 					resolve(cleaned);
 				} else if (stderr.length > 0) {
-					// Error
 					logger.error(`[Session ${this.sessionId}] Command failed:`, stderr);
 					reject(new Error(`Claude error: ${stderr}`));
 				} else {
-					// No output
 					logger.warn(`[Session ${this.sessionId}] No output received`);
 					reject(new Error('No response from Claude'));
 				}
@@ -131,8 +148,11 @@ export class ClaudeProcess {
 			// Handle spawn errors
 			claudeProcess.on('error', (error: Error) => {
 				if (timeoutId) clearTimeout(timeoutId);
-				this.currentProcess = null;
-				this.currentReject = null;
+				cleanup();
+
+				if (settled) return;
+				settled = true;
+
 				logger.error(`[Session ${this.sessionId}] Spawn error:`, error.message);
 				reject(new Error(`Failed to spawn Claude: ${error.message}`));
 			});
@@ -145,8 +165,8 @@ export class ClaudeProcess {
 				logger.debug(`[Session ${this.sessionId}] Input sent, stdin closed`);
 			} catch (error) {
 				if (timeoutId) clearTimeout(timeoutId);
-				this.currentProcess = null;
-				this.currentReject = null;
+				cleanup();
+				settled = true;
 				logger.error(`[Session ${this.sessionId}] Error writing to stdin:`, error);
 				claudeProcess.kill('SIGKILL');
 				reject(error);
@@ -174,12 +194,29 @@ export class ClaudeProcess {
 	}
 
 	/**
-	 * Stop the session (mark as inactive)
+	 * Stop the session and kill any lingering spawned processes
 	 */
 	async stop(): Promise<void> {
 		logger.info(`[Session ${this.sessionId}] Stopping session...`);
 		this.isActive = false;
-		// No long-running process to kill
+
+		// Abort active command if any
+		if (this.currentProcess) {
+			this.abortCommand();
+		}
+
+		// Kill any spawned processes still alive
+		for (const pid of this.spawnedPids) {
+			try {
+				process.kill(pid, 0); // Check if alive
+				logger.info(`[Session ${this.sessionId}] Killing orphaned process PID:`, pid);
+				process.kill(pid, 'SIGKILL');
+			} catch {
+				// Process already dead, ignore
+			}
+		}
+		this.spawnedPids.clear();
+
 		logger.info(`[Session ${this.sessionId}] Session stopped`);
 	}
 

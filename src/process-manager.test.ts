@@ -16,8 +16,8 @@ const mockSpawn = spawn as jest.MockedFunction<typeof spawn>;
 function createMockChildProcess() {
 	const proc = new EventEmitter() as any;
 	proc.stdin = { write: jest.fn(), end: jest.fn() };
-	proc.stdout = new EventEmitter();
-	proc.stderr = new EventEmitter();
+	proc.stdout = Object.assign(new EventEmitter(), { destroy: jest.fn() });
+	proc.stderr = Object.assign(new EventEmitter(), { destroy: jest.fn() });
 	proc.kill = jest.fn();
 	proc.pid = 12345;
 	return proc;
@@ -51,7 +51,11 @@ describe('ClaudeProcess', () => {
 			jest.advanceTimersByTime(6000);
 
 			expect(mockProc.kill).toHaveBeenCalledWith('SIGKILL');
-			await expect(promise).rejects.toThrow('Command timeout');
+
+			// Simulate OS closing the killed process (fires 'close' after streams drain)
+			mockProc.emit('close', null);
+
+			await expect(promise).rejects.toThrow('No response from Claude');
 		});
 	});
 
@@ -71,7 +75,7 @@ describe('ClaudeProcess', () => {
 
 			// Complete the process normally
 			mockProc.stdout.emit('data', Buffer.from('response'));
-			mockProc.emit('exit', 0);
+			mockProc.emit('close', 0);
 
 			const result = await promise;
 			expect(result).toBe('response');
