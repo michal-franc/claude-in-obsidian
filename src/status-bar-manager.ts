@@ -115,6 +115,16 @@ export class StatusBarManager {
 	}
 
 	/**
+	 * Get the countdown remaining seconds, or null if no countdown is active
+	 */
+	getCountdownRemaining(): number | null {
+		if (!this.countdownInterval) return null;
+		const elapsed = Date.now() - this.countdownStartTime;
+		const remainingMs = Math.max(0, this.countdownTotalMs - elapsed);
+		return Math.ceil(remainingMs / 1000);
+	}
+
+	/**
 	 * Render the status bar content
 	 */
 	private render(): void {
@@ -129,10 +139,16 @@ export class StatusBarManager {
 				this.statusBarEl.setText('Claude: Idle');
 				break;
 
-			case 'processing':
+			case 'processing': {
 				this.statusBarEl.addClass('claude-status-processing');
-				this.statusBarEl.setText(this.currentInfo.message || 'Claude: Processing...');
+				const remaining = this.getCountdownRemaining();
+				if (remaining !== null) {
+					this.statusBarEl.setText(`Claude: Processing... (${remaining}s)`);
+				} else {
+					this.statusBarEl.setText(this.currentInfo.message || 'Claude: Processing...');
+				}
 				break;
+			}
 
 			case 'warning':
 				this.statusBarEl.addClass('claude-status-warning');
@@ -184,8 +200,8 @@ export class StatusBarManager {
 		this.countdownStartTime = Date.now();
 		this.countdownTotalMs = totalMs;
 		logger.debug('[StatusBarManager] Starting countdown:', totalMs, 'ms');
-		this.updateCountdownDisplay();
 		this.countdownInterval = setInterval(() => this.updateCountdownDisplay(), 1000);
+		this.updateCountdownDisplay();
 	}
 
 	/**
@@ -207,12 +223,10 @@ export class StatusBarManager {
 		const remainingMs = Math.max(0, this.countdownTotalMs - elapsed);
 		const remainingSec = Math.ceil(remainingMs / 1000);
 
-		// Update status bar text
-		if (this.statusBarEl && this.currentInfo.state === 'processing') {
-			this.statusBarEl.setText(`Claude: Processing... (${remainingSec}s)`);
-		}
+		// Re-render status bar (render() reads countdown state)
+		this.render();
 
-		// Update callout DOM element
+		// Update callout DOM element (re-apply every tick since Obsidian may recreate DOM)
 		if (typeof document !== 'undefined') {
 			const calloutEl = document.querySelector('.callout[data-callout="claude-processing"]');
 			if (calloutEl) {

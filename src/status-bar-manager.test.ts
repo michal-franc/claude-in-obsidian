@@ -170,6 +170,20 @@ describe('StatusBarManager', () => {
 			expect((statusBarManager as any).countdownInterval).toBeNull();
 		});
 
+		it('should survive render() calls during countdown', () => {
+			statusBarManager.setProcessing('Processing...');
+			statusBarManager.startCountdown(30000);
+
+			const statusBarEl = (statusBarManager as any).statusBarEl;
+			expect(statusBarEl.setText).toHaveBeenCalledWith('Claude: Processing... (30s)');
+
+			// Simulate a render() triggered by setProcessing (e.g., queue update)
+			statusBarManager.setProcessing('Processing... (1 queued)');
+
+			// render() should still include the countdown, not the plain message
+			expect(statusBarEl.setText).toHaveBeenLastCalledWith('Claude: Processing... (30s)');
+		});
+
 		it('should clear previous countdown when starting a new one', () => {
 			statusBarManager.setProcessing('Processing...');
 			statusBarManager.startCountdown(30000);
