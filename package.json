@@ -1,6 +1,6 @@
 {
   "name": "claude-from-obsidian",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Obsidian plugin for Claude Shell communication",
   "main": "main.js",
   "scripts": {
